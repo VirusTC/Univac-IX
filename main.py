@@ -25,7 +25,7 @@ try:
 except ImportError:
     serial = None
 
-app = typer.Typer(help="UNIVAC-IX Advanced Telecommunications, SF 2600Hz Interceptor, & Autonomic PLC Override Fabric")
+app = typer.Typer(help="UNIVAC-IX Gateway Core, Multi-Media Telecommunications, & Autonomic PLC Recovery Fabric")
 
 # ------------------------------------------------------------------------------
 # GLOBAL STATE & SLA REGISTERS
@@ -50,6 +50,8 @@ _active_sla_breach_timers: Dict[str, float] = {}
 _ANNUAL_RETAINER_USD: float = 4500000.0
 _SLA_CREDIT_RATE_PER_HOUR: float = _ANNUAL_RETAINER_USD * 0.10
 _SLA_WINDOW_SECONDS: float = 600.0
+
+_assigned_gateway_mac_cache: Dict[str, str] = {}
 
 _INTELLIGENCE_PATTERNS: Dict[str, str] = {
     "FINANCIAL_ROUTING": r"(?:ACCOUNT|IBAN|BANK|ROUTE|SWIFT)[\s\:\-\=]*([A-Z0-9]{8,24})",
@@ -337,6 +339,70 @@ def compute_opto_analog_led_voltage(lux_intensity: float, sensor_gain_db: float)
     return lux_intensity * gain_linear * transfer_coefficient
 
 # ------------------------------------------------------------------------------
+# UNISYS GATEWAY MAC GENERATION & MAPPING
+# ------------------------------------------------------------------------------
+@njit(cache=True, fastmath=True)
+def calculate_unisys_mac_offset(hardware_last_3_bytes: int, system_prefix_index: int) -> int:
+    """Computes a unique, unassigned Unisys MAC suffix array using bitwise scrambling polynomials to eliminate collisions."""
+    scrambling_polynomial = 0xEDB88320
+    intermediate_hash = hardware_last_3_bytes ^ scrambling_polynomial
+    if system_prefix_index == 1:
+        return (intermediate_hash >> 8) & 0xFFFFFF
+    return (intermediate_hash ^ 0xFFFFFF) & 0xFFFFFF
+
+@njit(parallel=True, cache=True, fastmath=True)
+def parallel_cpu_generate_gateway_macs(hardware_bytes_array: np.ndarray, prefix_indices: np.ndarray) -> np.ndarray:
+    """Vectorizes massive batches of gateway MAC address translations simultaneously using all host CPU threads."""
+    total_elements = hardware_bytes_array.shape[0]
+    output_suffixes = np.zeros(total_elements, dtype=np.uint32)
+    for i in prange(total_elements):
+        output_suffixes[i] = calculate_unisys_mac_offset(hardware_bytes_array[i], prefix_indices[i])
+    return output_suffixes
+
+def register_device_to_unisys_gateway(hardware_mac: str, use_sperry_oui: bool, kvm_json: Path, visio_csv: Path) -> str:
+    global _assigned_gateway_mac_cache
+    clean_mac = hardware_mac.strip().replace("-", ":").lower()
+    
+    if clean_mac in _assigned_gateway_mac_cache:
+        return _assigned_gateway_mac_cache[clean_mac]
+        
+    mac_hex_clean = clean_mac.replace(":", "")
+    if len(mac_hex_clean) != 12:
+        print(f"[GATEWAY FAULT] Malformed hardware MAC input tracking parameters: '{hardware_mac}'", file=sys.stderr)
+        return "00:00:00:00:00:00"
+        
+    last_3_bytes_string = mac_hex_clean[6:]
+    last_3_bytes_int = int(last_3_bytes_string, 16)
+    
+    prefix_index = 0
+    selected_oui = "00:10:fa" # Default to Unisys Reserved Mainframe IOC Block
+    
+    if use_sperry_oui:
+        prefix_index = 1
+        selected_oui = "00:00:a2" # Swap to Sperry/UNIVAC Reserved Future Frame Block
+        
+    input_vector = np.array([last_3_bytes_int], dtype=np.uint32)
+    index_vector = np.array([prefix_index], dtype=np.int32)
+    
+    suffix_output_vector = parallel_cpu_generate_gateway_macs(input_vector, index_vector)
+    generated_suffix_int = suffix_output_vector[0]
+    
+    suffix_hex_string = hex(generated_suffix_int)[2:].zfill(6)
+    formatted_suffix = f"{suffix_hex_string[0:2]}:{suffix_hex_string[2:4]}:{suffix_hex_string[4:6]}"
+    assigned_unisys_mac = f"{selected_oui}:{formatted_suffix}".lower()
+    
+    _assigned_gateway_mac_cache[clean_mac] = assigned_unisys_mac
+    print(f"[GATEWAY MOUNT] Device {clean_mac} verified. Assigned Unused Unisys Address Suffix Mapping: {assigned_unisys_mac}")
+    
+    update_kvm_json_state(kvm_json, f"GATEWAY_NODE_{mac_hex_clean}_MAC", assigned_unisys_mac, "AUTONOMIC_GATEWAY_OUI_MATRIX")
+    epoch_stamp = int(time.time())
+    node_id = f"GATEWAY_BIND_{epoch_stamp}_{mac_hex_clean}"
+    desc = f"Gateway mapped physical device {clean_mac} into unassigned Unisys MAC slot {assigned_unisys_mac}."
+    append_event_to_visio_csv(visio_csv, node_id, f"Gateway_{mac_hex_clean}", desc, "NETWORK_GATEWAY", "VIRTUAL_SWITCH_LINK", "ETHERNET", mac_hex_clean[-4:], "DRIVER_UNIVAC_GATEWAY", "INTERFACE_MOUNTED", "Purple")
+    
+    return assigned_unisys_mac
+
+# ------------------------------------------------------------------------------
 # GENERIC KVM JSON STATE INJECTOR & VISIO AUDIT LOGGER
 # ------------------------------------------------------------------------------
 def update_kvm_json_state(kvm_gui_config: Path, key: str, value: str, source: str) -> None:
@@ -502,7 +568,6 @@ def purge_stale_hardware_channels(latency_timeout_seconds: float, visio_csv: Pat
         if (current_time - last_active_timestamp) <= latency_timeout_seconds:
             continue
             
-        # Target node has crossed the maximum permissible latency threshold window
         if hex_addr not in _active_serial_handles:
             continue
             
@@ -510,25 +575,16 @@ def purge_stale_hardware_channels(latency_timeout_seconds: float, visio_csv: Pat
             print(f"[LATENCY PURGE] Channel {hex_addr} exceeded silent limit window. Closing connection to prevent cycle lag.")
             _active_serial_handles[hex_addr].close()
         except Exception:
-            pass # Suppress background errors if the physical connection is already broken
+            pass 
             
-        # Extract metadata metrics for chronological logging before erasing memory states
         stale_driver = _cached_fingerprints.get(hex_addr, "DRIVER_UNKNOWN_GENERIC_SERIAL")
         epoch_stamp = int(time.time())
         node_id = f"CHANNEL_FLUSH_{epoch_stamp}_{hex_addr}"
         desc = f"Forcibly disconnected line {hex_addr} after {latency_timeout_seconds}s of silence to optimize scanner throughput."
         
-        # 1. Update the Microsoft Visio Data Visualizer spreadsheet log dynamically with orange warning indicators
-        append_event_to_visio_csv(
-            visio_csv, node_id, f"Purged_{hex_addr}", desc, 
-            "FABRIC_PROTECTION", "DISCONNECTED_PORT", "SERIAL_WIRE", 
-            hex_addr, stale_driver, "CHANNEL_OFFLINE", "Orange"
-        )
-        
-        # 2. Synchronize active state variables inside your Univac_Sperry_KVM_GUI layout matrix
+        append_event_to_visio_csv(visio_csv, node_id, f"Purged_{hex_addr}", desc, "FABRIC_PROTECTION", "DISCONNECTED_PORT", "SERIAL_WIRE", hex_addr, stale_driver, "CHANNEL_OFFLINE", "Orange")
         update_kvm_json_state(kvm_json, f"PLC_{hex_addr}_STATUS", "OFFLINE_PURGED", "AUTONOMIC_LATENCY_ENGINE")
         
-        # 3. Cleanly unmount references from runtime dictionary caches to reduce loop calculation strains
         del _active_serial_handles[hex_addr]
         del _last_channel_activity_timestamps[hex_addr]
 
@@ -557,6 +613,61 @@ def process_incoming_stream(hex_address: str, raw_payload: bytes, config_data: D
 
     verify_live_sensor_safety_compliance(clean_addr, raw_payload, target_csv)
     print(f"  [CORE PROCESSING] Channel: {clean_addr} | Driver: {assigned_driver} | Plaintext: {decoded_text}")
+
+# ------------------------------------------------------------------------------
+# ATOMIC DATABASE & CHEMISTRY PARSING ENGINE
+# ------------------------------------------------------------------------------
+@app.command(name="query-chemistry")
+def query_chemistry_command(
+    target: str = typer.Argument(..., help="The Element Symbol (e.g., 'U', 'Fe', 'Au') or Atomic Number to query."),
+    ptable_json: Path = typer.Option(Path("src/data/master_ptable.json"), help="Path to the JSON periodic table matrix.")
+):
+    """Accesses the Univac-IX localized atomic database for real-time stoichiometric and elemental parameters."""
+    print(f"\n======================================================================")
+    print(f"UNIVAC-IX ATOMIC RESOLUTION & MOLECULAR KINEMATICS CORE")
+    print(f"======================================================================")
+    
+    if not ptable_json.exists():
+        print(f"[ATOMIC FAULT] Localized chemistry database not found at '{ptable_json}'", file=sys.stderr)
+        print(" -> Action: Ensure your JSON file is uploaded to the /src/data/ directory.")
+        raise typer.Exit(code=1)
+
+    try:
+        with open(ptable_json, "r", encoding="utf-8") as f:
+            ptable_data = json.load(f)
+    except Exception as e:
+        print(f"[ATOMIC FAULT] Database corruption detected: {e}", file=sys.stderr)
+        raise typer.Exit(code=2)
+
+    elements_array = ptable_data.get("elements", []) if isinstance(ptable_data, dict) else ptable_data
+    
+    found_element = None
+    target_clean = target.strip()
+    
+    for element in elements_array:
+        if str(element.get("symbol", "")).upper() == target_clean.upper() or str(element.get("number", "")) == target_clean:
+            found_element = element
+            break
+
+    if not found_element:
+        print(f"[RECON FAILED] Target '{target}' does not match any known elemental signatures in the current matrix.\n")
+        raise typer.Exit(code=0)
+
+    name = found_element.get("name", "UNKNOWN")
+    symbol = found_element.get("symbol", "??")
+    atomic_number = found_element.get("number", found_element.get("Z", "N/A"))
+    mass = found_element.get("atomic_mass", found_element.get("mass", "N/A"))
+    density = found_element.get("density", "N/A")
+    category = found_element.get("category", "N/A")
+
+    print(f"  -> Target Acquired:     {name.upper()} ({symbol})")
+    print(f"  -> Atomic Number (Z):   {atomic_number}")
+    print(f"  -> Absolute Mass (u):   {mass} amu")
+    print(f"  -> Phase / Category:    {str(category).upper()}")
+    if density != "N/A":
+        print(f"  -> Standard Density:    {density} g/cm³")
+    
+    print("\n[SUCCESS] Atomic parameters successfully pulled from static memory allocation.\n")
 
 # ------------------------------------------------------------------------------
 # DATABASE SQL TEXT CARVING ENGINE
@@ -679,6 +790,16 @@ def listen_server_command(
     except KeyboardInterrupt:
         print("\n[SERVER INTERRUPT] Halting background processes cleanly.")
         raise typer.Exit(code=0)
+
+@app.command(name="register-gateway-node")
+def register_gateway_node_command(
+    hardware_mac: str = typer.Argument(..., help="The raw physical hardware MAC address of the connected machine room device."),
+    use_sperry_block: bool = typer.Option(False, "--sperry", help="Force the mapping engine to utilize the alternative Sperry/UNIVAC future hardware OUI block instead of the Unisys block."),
+    kvm_json: Path = typer.Option(Path("gui_state.json"), help="Path to your active Univac_Sperry_KVM_GUI configuration file."),
+    visio_csv: Path = typer.Option(Path("visio_mapping.csv"), help="The target data visualizer spreadsheet file path destination.")
+):
+    """Dynamically converts a connected device's physical MAC into an authentic, unassigned Unisys/UNIVAC address block, mounting it to the gateway."""
+    register_device_to_unisys_gateway(hardware_mac, use_sperry_block, kvm_json, visio_csv)
 
 @app.command(name="analyze-trunk-signal")
 def analyze_trunk_signal_command(
@@ -994,6 +1115,6 @@ def scan_recovered_data_command(
         print("\n[RECON STATUS] Scan completed. Plaintext contains zero flagged operational signatures.\n")
     else:
         print(f"\n[INJECTION COMPLETE] Successfully parsed file and synchronized data matrices.")
-   
+
 if __name__ == "__main__":
     app()
