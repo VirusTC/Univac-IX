@@ -1,35 +1,56 @@
 system:
-  identity: "UNIVAC-UNIVERSAL-EMULATOR-NODE-01"
+  identity: "UNIVAC-IX-CORE-FABRIC"
   default_word_size: 36
-  total_legacy_ports: 55
+
+routing_matrix:
+  source_node: "0x00FF" # Fiber Optic Trunk Line
+  mirror_targets:
+    - address: "0x0011"
+      label: "SYS_MONITOR_INCOMING"
+      description: "Internal incoming serial tracking data stream"
+    - address: "0x0012"
+      label: "SYS_MONITOR_SENDING"
+      description: "Internal outgoing serial tracking data stream"
+    - address: "0x0013"
+      label: "RADIO_TRANS_RX"
+      description: "External radio receiver hardware stream interface"
+    - address: "0x0014"
+      label: "RADIO_TRANS_TX"
+      description: "External radio transmitter hardware stream interface"
 
 nodes:
-  # Examples of the 55 ports mapping to serial streams
-  - id: "PORT_01"
-    name: "NTDS_Parallel_Type_A_Ch1"
+  - id: "PORT_17"
+    name: "Sys_Incoming_Monitor"
     type: "LEGACY_CONVERTED_SERIAL"
-    port: "/dev/ttyUSB0"
-    hex_address: "0x0001"
+    port: "/dev/ttyUSB16"
+    hex_address: "0x0011"
     target_module: "aegis-bridge"
     status: "ACTIVE"
 
-  - id: "PORT_24"
-    name: "Univac_36Bit_Word_Ch24"
+  - id: "PORT_18"
+    name: "Sys_Sending_Monitor"
     type: "LEGACY_CONVERTED_SERIAL"
-    port: "/dev/ttyUSB23"
-    hex_address: "0x0018"
-    target_module: "otis-gen360"
+    port: "/dev/ttyUSB17"
+    hex_address: "0x0012"
+    target_module: "aegis-bridge"
     status: "ACTIVE"
 
-  - id: "PORT_55"
-    name: "NTDS_Serial_Type_E_Ch55"
+  - id: "PORT_19"
+    name: "Radio_Transmission_In"
     type: "LEGACY_CONVERTED_SERIAL"
-    port: "/dev/ttyUSB54"
-    hex_address: "0x0037"
-    target_module: "safety-monitor"
+    port: "/dev/ttyUSB18"
+    hex_address: "0x0013"
+    target_module: "aviation-knowledge"
     status: "ACTIVE"
 
-  # High-speed Fiber Optic aggregation trunk line
+  - id: "PORT_20"
+    name: "Radio_Transmission_Out"
+    type: "LEGACY_CONVERTED_SERIAL"
+    port: "/dev/ttyUSB19"
+    hex_address: "0x0014"
+    target_module: "aviation-knowledge"
+    status: "ACTIVE"
+
   - id: "FIBER_TRUNK_01"
     name: "High_Speed_Fiber_Optic_Bus"
     type: "FIBER_OPTIC"
