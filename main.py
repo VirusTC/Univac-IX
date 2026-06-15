@@ -1,6 +1,6 @@
 # File Name: main.py
 # Location: /src/
-# Subsystem: UNIVAC-IX Sovereignty Mainframe OS (Unified Core) & Kommandogerat-58 Physics
+# Subsystem: UNIVAC-IX Sovereignty Mainframe OS (Unified Core)
 
 import sys
 import os
@@ -23,7 +23,7 @@ try:
 except ImportError:
     serial = None
 
-app = typer.Typer(help="UNIVAC-IX Sovereignty Mainframe OS, Radio Mesh, Data Recovery, SLA Accounting & Kommandogerat-58 Physics Engineering Core")
+app = typer.Typer(help="UNIVAC-IX Sovereignty Mainframe OS, Athena-Class Wireless Daemon, Opto-Analog Fabric, & KG-58 Physics Core")
 
 # ------------------------------------------------------------------------------
 # GLOBAL STATE & SLA REGISTERS
@@ -38,6 +38,7 @@ _cached_fingerprints: Dict[str, str] = {
 }
 
 _safety_threshold_registers: Dict[str, Dict[str, int]] = {
+    "0x0013": {"upper_limit": 90, "lower_limit": 0},
     "0x0037": {"upper_limit": 200, "lower_limit": 10},
     "0x0038": {"upper_limit": 250, "lower_limit": 18}
 }
@@ -54,8 +55,62 @@ _INTELLIGENCE_PATTERNS: Dict[str, str] = {
 }
 
 # ------------------------------------------------------------------------------
-# MULTICORE HEX-TO-TEXT ACCELERATION
+# MULTICORE DATA CARVING & HEX ACCELERATION
 # ------------------------------------------------------------------------------
+@njit(cache=True, fastmath=True)
+def decode_fieldata_byte(byte_val: int) -> int:
+    if byte_val == 0:   return 32
+    if byte_val == 1:   return 48
+    if byte_val == 2:   return 49
+    if byte_val == 3:   return 50
+    if byte_val == 4:   return 51
+    if byte_val == 5:   return 52
+    if byte_val == 6:   return 53
+    if byte_val == 7:   return 54
+    if byte_val == 8:   return 55
+    if byte_val == 9:   return 56
+    if byte_val == 10:  return 57
+    if 11 <= byte_val <= 36: return byte_val + 54
+    if byte_val == 37:  return 46
+    if byte_val == 38:  return 44
+    if byte_val == 39:  return 45
+    if byte_val == 40:  return 47
+    return 63
+
+@njit(cache=True, fastmath=True)
+def decode_ebcdic_byte(byte_val: int) -> int:
+    if byte_val == 0x40: return 32
+    if 0x81 <= byte_val <= 0x89: return byte_val - 0x81 + 97
+    if 0x91 <= byte_val <= 0x99: return byte_val - 0x91 + 106
+    if 0xA2 <= byte_val <= 0xA9: return byte_val - 0xA2 + 115
+    if 0xC1 <= byte_val <= 0xC9: return byte_val - 0xC1 + 65
+    if 0xD1 <= byte_val <= 0xD9: return byte_val - 0xD1 + 74
+    if 0xE2 <= byte_val <= 0xE9: return byte_val - 0xE2 + 83
+    if 0xF0 <= byte_val <= 0xF9: return byte_val - 0xF0 + 48
+    if byte_val == 0x4B: return 46
+    if byte_val == 0x6B: return 44
+    if byte_val == 0x60: return 45
+    if byte_val == 0x61: return 47
+    if byte_val == 0x50: return 38
+    if byte_val == 0x7D: return 39
+    return 63
+
+@njit(parallel=True, cache=True, fastmath=True)
+def parallel_cpu_carve_fieldata(raw_binary_buffer: np.ndarray) -> np.ndarray:
+    total_bytes = raw_binary_buffer.shape[0]
+    output_ascii_array = np.zeros(total_bytes, dtype=np.uint8)
+    for i in prange(total_bytes):
+        output_ascii_array[i] = decode_fieldata_byte(raw_binary_buffer[i] & 0x3F)
+    return output_ascii_array
+
+@njit(parallel=True, cache=True, fastmath=True)
+def parallel_cpu_carve_ebcdic(raw_binary_buffer: np.ndarray) -> np.ndarray:
+    total_bytes = raw_binary_buffer.shape[0]
+    output_ascii_array = np.zeros(total_bytes, dtype=np.uint8)
+    for i in prange(total_bytes):
+        output_ascii_array[i] = decode_ebcdic_byte(raw_binary_buffer[i])
+    return output_ascii_array
+
 @njit(parallel=True)
 def parallel_cpu_hex_to_text_matrix(hex_array: np.ndarray, hex_lengths: np.ndarray) -> np.ndarray:
     total_lines = hex_array.shape[0]
@@ -70,12 +125,10 @@ def parallel_cpu_hex_to_text_matrix(hex_array: np.ndarray, hex_lengths: np.ndarr
             low_char = hex_array[i, (j * 2) + 1]
             
             high_nibble = high_char - 48
-            if high_char > 64:
-                high_nibble = high_char - 55
+            if high_char > 64: high_nibble = high_char - 55
                 
             low_nibble = low_char - 48
-            if low_char > 64:
-                low_nibble = low_char - 55
+            if low_char > 64: low_nibble = low_char - 55
                 
             ascii_matrix[i, j] = (high_nibble << 4) | low_nibble
     return ascii_matrix
@@ -83,10 +136,8 @@ def parallel_cpu_hex_to_text_matrix(hex_array: np.ndarray, hex_lengths: np.ndarr
 def inline_multicore_hex_decode(raw_hex_string: str) -> str:
     clean_hex = raw_hex_string.strip().upper()
     hex_len = len(clean_hex)
-    if hex_len == 0:
-        return ""
-    if hex_len % 2 != 0:
-        return "[ERROR: ASYMMETRIC STREAM]"
+    if hex_len == 0: return ""
+    if hex_len % 2 != 0: return "[ERROR: ASYMMETRIC STREAM]"
         
     hex_matrix = np.zeros((1, hex_len), dtype=np.uint8)
     line_lengths = np.array([hex_len], dtype=np.int32)
@@ -136,25 +187,29 @@ def parallel_cpu_verify_mass_balance(masses: np.ndarray, radii: np.ndarray, angl
 
 @njit(cache=True, fastmath=True)
 def evaluate_plane_adjusted_torque(force_newtons: float, arm_length_meters: float, force_angle_degrees: float, orientation_plane_angle_degrees: float) -> float:
-    """Computes torsional moments adjusted dynamically for flat vs horizontal mounting plane gravity shifts."""
     angle_rad = (force_angle_degrees * math.pi) / 180.0
     base_torque = force_newtons * arm_length_meters * math.sin(angle_rad)
-    
     plane_rad = (orientation_plane_angle_degrees * math.pi) / 180.0
     gravity_friction_coefficient = 1.0 - (0.15 * math.sin(plane_rad))
-    
     return base_torque * gravity_friction_coefficient
 
 @njit(parallel=True, cache=True, fastmath=True)
 def parallel_cpu_compute_servo_matrix(forces: np.ndarray, arms: np.ndarray, force_angles: np.ndarray, plane_angles: np.ndarray) -> np.ndarray:
-    """Vectorizes multi-axis servo angle physics updates across all available host CPU execution threads simultaneously."""
-    total_elements = forces.shape[0] # FIX: Applied shape[0] correction for Numba indexing
+    total_elements = forces.shape[0] 
     adjusted_torques_nm = np.zeros(total_elements, dtype=np.float64)
-    
     for i in prange(total_elements):
         adjusted_torques_nm[i] = evaluate_plane_adjusted_torque(forces[i], arms[i], force_angles[i], plane_angles[i])
-        
     return adjusted_torques_nm
+
+@njit(cache=True, fastmath=True)
+def calculate_opto_analog_led_intensity(input_voltage_volts: float, amplification_gain_factor: float) -> float:
+    """Simulates vacuum tube math outputs, mapping voltage input strings to luminous intensity values."""
+    if input_voltage_volts <= 0.0: return 0.0
+    if input_voltage_volts >= 15.0: return 5000.0
+    saturation_curve = 1.0 - math.exp(-input_voltage_volts / 5.0)
+    base_intensity = 5000.0 * saturation_curve * amplification_gain_factor
+    if base_intensity > 5000.0: return 5000.0
+    return base_intensity
 
 # ------------------------------------------------------------------------------
 # DATA RECOVERY LOGGERS, VISIO AUDITING, & KVM INJECTION
@@ -200,11 +255,9 @@ def append_mechanical_audit_to_visio(actuator_index: int, force_newtons: float, 
     try:
         with open(target_csv, "a", encoding="utf-8") as ledger:
             ledger.write(log_line)
-        print(f"  -> [VISIO STITCH SUCCESS] Appended telemetry row {node_id} directly to file matrix database.")
     except Exception: pass
 
 def inject_servo_metrics_to_kvm_config(device_id: int, plane_angle: float, adjusted_torque: float, kvm_gui_config: Path) -> None:
-    """Hot-injects calculated physical servo angles and plane friction adjustments directly into KVM JSON state views."""
     current_gui_state: Dict[str, Any] = {}
     if kvm_gui_config.exists():
         try:
@@ -230,7 +283,6 @@ def inject_servo_metrics_to_kvm_config(device_id: int, plane_angle: float, adjus
         "last_synchronized": timestamp_str,
         "display_status": "RENDER_ACTIVE"
     }
-
     current_gui_state["live_dashboard_vars"][key_torque] = {
         "value": f"{adjusted_torque:.2f} N·m",
         "source": "KG58_KINEMATICS_COMPUTATION_ENGINE",
@@ -245,6 +297,61 @@ def inject_servo_metrics_to_kvm_config(device_id: int, plane_angle: float, adjus
     except Exception:
         pass
 
+def inject_radio_metrics_to_kvm_config(device_id: int, orientation_deg: float, compensated_torque: float, kvm_gui_config: Path) -> None:
+    """Appends live angular telemetry variables straight to the KVM layout map file structure."""
+    current_gui_state: Dict[str, Any] = {}
+    if kvm_gui_config.exists():
+        try:
+            with open(kvm_gui_config, "r", encoding="utf-8") as stream:
+                current_gui_state = json.load(stream)
+        except Exception:
+            pass
+            
+    if "live_dashboard_vars" not in current_gui_state:
+        current_gui_state["live_dashboard_vars"] = {}
+        
+    plane_label = "FLAT_PLANETARY"
+    if orientation_deg >= 45.0:
+        plane_label = "HORIZONTAL_EDGE"
+        
+    key_plane = f"WIRELESS_MOTOR_{device_id}_ORIENTATION_ANGLE"
+    key_torque = f"WIRELESS_MOTOR_{device_id}_COMPENSATED_TORQUE"
+    timestamp_str = time.strftime("%Y-%m-%d %H:%M:%S")
+    
+    current_gui_state["live_dashboard_vars"][key_plane] = {
+        "value": f"{orientation_deg:.1f}° ({plane_label})",
+        "source": "WIRELESS_ATHENA_RADIO_FIELD_SENSOR",
+        "last_synchronized": timestamp_str,
+        "display_status": "RENDER_ACTIVE"
+    }
+    current_gui_state["live_dashboard_vars"][key_torque] = {
+        "value": f"{compensated_torque:.2f} N·m",
+        "source": "NUMBA_ACCELERATED_TORQUE_SOLVER",
+        "last_synchronized": timestamp_str,
+        "display_status": "RENDER_ACTIVE"
+    }
+    
+    try:
+        with open(kvm_gui_config, "w", encoding="utf-8") as target_out:
+            json.dump(current_gui_state, target_out, indent=2, ensure_ascii=False)
+    except Exception:
+        pass
+
+def append_radio_injection_to_visio_map(device_id: int, plane_angle: float, torque: float, target_csv: Path) -> None:
+    if not target_csv.exists():
+        return
+    epoch_stamp = int(time.time())
+    node_id = f"RADIO_WIRELESS_INJECT_{epoch_stamp}_{device_id}"
+    timestamp = time.strftime("%H:%M:%S")
+    node_name = f"Wireless_Motor_{device_id}_{timestamp}"
+    node_desc = f"OTA Radio Update: Servo plane labeled at {plane_angle:.1f} deg. Corrected torque calculation = {torque:.2f} N-m."
+    log_line = f'{node_id},{node_name},"{node_desc}",,,RADIO_MESH_INJECT,WIRELESS_RF_LINK,0x0013,DRIVER_AVIATION_KNOWLEDGE,RADIO_MUTATED_STATE,WARNING,Orange,NONE\n'
+    try:
+        with open(target_csv, "a", encoding="utf-8") as ledger:
+            ledger.write(log_line)
+    except Exception:
+        pass
+
 # ------------------------------------------------------------------------------
 # THE NETWORK PORT LISTENER (SLA ACCOUNTING)
 # ------------------------------------------------------------------------------
@@ -256,8 +363,7 @@ def calculate_and_log_sla_credits(channel_addr: str, visio_csv: Path) -> None:
     breach_overtime_seconds = elapsed_seconds - _SLA_WINDOW_SECONDS
     overtime_hours = breach_overtime_seconds / 3600.0
     accrued_penalty_usd = overtime_hours * _SLA_CREDIT_RATE_PER_HOUR
-    print(f"  [SLA BREACH ALERT] Intervention windows breached by {breach_overtime_seconds:.2f} seconds!")
-    print(f"  [FINANCIAL RETENTION] Accruing sovereign compensation credits: ${accrued_penalty_usd:.2f} USD.")
+    print(f"  [SLA CONTRACT BREACH ACCRUING] Overtime Delta: {breach_overtime_seconds:.1f}s. Credit Penalty Owed: ${accrued_penalty_usd:.2f} USD.")
     if not visio_csv.exists(): return
     epoch_stamp = int(time.time())
     node_id = f"SLA_PENALTY_{epoch_stamp}_{channel_addr}"
@@ -272,12 +378,12 @@ def calculate_and_log_sla_credits(channel_addr: str, visio_csv: Path) -> None:
 def track_and_initialize_sla_timer(channel_addr: str) -> None:
     if channel_addr in _active_sla_breach_timers: return
     _active_sla_breach_timers[channel_addr] = time.time()
-    print(f"  [SLA INCEPTION REGISTERED] Core tactical clock armed for channel {channel_addr}. 10-Minute intervention window active.")
+    print(f"  [SLA INCEPTION REGISTERED] Core operational stopwatch active for channel {channel_addr}.")
 
 def clear_sla_timer(channel_addr: str) -> None:
     if channel_addr not in _active_sla_breach_timers: return
     del _active_sla_breach_timers[channel_addr]
-    print(f"  [SLA RESOLVED] Target channel {channel_addr} returned to nominal state. Intercept stopwatch disarmed safely.")
+    print(f"  [SLA RESOLVED] Target channel {channel_addr} cleared parameters. Stopwatch disarmed safely.")
 
 def dispatch_emergency_radio_broadcast(hex_address: str, violation_type: str, threshold_val: int, current_val: int) -> None:
     radio_tx_addr = "0x0014"
@@ -289,7 +395,7 @@ def dispatch_emergency_radio_broadcast(hex_address: str, violation_type: str, th
     hex_payload = radio_message.encode("utf-8").hex().upper()
     try:
         _active_serial_handles[radio_tx_addr].write(bytes.fromhex(hex_payload))
-        print(f"  [RADIO MESH BROADCAST] Transmitting telemetry payload string to field pager matrix loops.")
+        print(f"  [RADIO MESH BROADCAST] Transmitting telemetry emergency warning vector frame over long-range lines.")
     except Exception: pass
 
 def verify_live_sensor_safety_compliance(hex_address: str, raw_payload_bytes: bytes, visio_csv: Path) -> None:
@@ -304,10 +410,10 @@ def verify_live_sensor_safety_compliance(hex_address: str, raw_payload_bytes: by
     if measured_integer_value > max_boundary or measured_integer_value < min_boundary:
         sys.stdout.write("\a\a\a"); sys.stdout.flush()
         print("\n" + "!" * 80)
-        print(f" !!! CRITICAL PACKET COMPLIANCE BREACH: SAFETY BOUNDS EXCEEDED !!!")
+        print(f" !!! CRITICAL CORE FABRIC RECON COMPLIANCE BREACH: SAFETY BOUNDS EXCEEDED !!!")
         limit_used = max_boundary if measured_integer_value > max_boundary else min_boundary
         type_str = "MAX_EXCEEDED" if measured_integer_value > max_boundary else "MIN_EXCEEDED"
-        print(f" -> INCOMING ROUTE CHANNEL: {clean_addr} | Real-Time Value: {measured_integer_value} (LIMIT: {limit_used})")
+        print(f" -> HARDWARE CHANNEL: {clean_addr} | Real-Time Read: {measured_integer_value} (LIMIT: {limit_used})")
         print("!" * 80)
         track_and_initialize_sla_timer(clean_addr)
         calculate_and_log_sla_credits(clean_addr, visio_csv)
@@ -325,37 +431,82 @@ def execute_matrix_mirror_routing(source_addr: str, raw_payload: bytes, config_d
         try: _active_serial_handles[target_addr].write(raw_payload)
         except Exception: pass
 
-def process_incoming_stream(hex_address: str, raw_payload: bytes, config_data: Dict[str, Any], target_csv: Path) -> None:
+# ------------------------------------------------------------------------------
+# AUTOMATED RADIO MULTIPLEXER PROCESSING ENGINE
+# ------------------------------------------------------------------------------
+def handle_incoming_athena_radio_field_signal(hex_payload_str: str, config_data: Dict[str, Any], kvm_gui_config: Path, visio_csv: Path) -> None:
+    """Decodes high-noise over-the-air radio signal packets, rectifying motor orientation angles instantly."""
+    decoded_text = inline_multicore_hex_decode(hex_payload_str)
+    if not decoded_text: return
+    if not decoded_text.startswith("[WIRELESS_RF_ANG]"): return
+    
+    try:
+        command_payload = decoded_text.replace("[WIRELESS_RF_ANG]", "").strip()
+        params = command_payload.split(",")
+        motor_id = int(params[0].strip())
+        force_n = float(params[1].strip())
+        arm_m = float(params[2].strip())
+        incidence_deg = float(params[3].strip())
+        plane_angle_deg = float(params[4].strip())
+        
+        adjusted_torque = evaluate_plane_adjusted_torque(force_n, arm_m, incidence_deg, plane_angle_deg)
+        print(f"\n[RADIO ATHENA RX] Intercepted over-the-air telemetry from field sensor device: Motor ID {motor_id}")
+        print(f"  -> Physical Mounting Profile: Orientation Angle = {plane_angle_deg:.1f}° Heading Alignment")
+        print(f"  -> Kinematic Torque Solution: Compensated Load Force = {adjusted_torque:.2f} N·m Torsional Moment")
+        
+        inject_radio_metrics_to_kvm_config(motor_id, plane_angle_deg, adjusted_torque, kvm_gui_config)
+        append_radio_injection_to_visio_map(motor_id, plane_angle_deg, adjusted_torque, visio_csv)
+        
+        raw_angle_byte = bytes([int(plane_angle_deg) & 0xFF])
+        verify_live_sensor_safety_compliance("0x0013", raw_angle_byte, visio_csv)
+    except Exception as err:
+        print(f"  -> [RADIO ATHENA ERROR] Malformed wireless structural matrix frame: {err}", file=sys.stderr)
+
+def process_incoming_stream(hex_address: str, raw_payload: bytes, config_data: Dict[str, Any], kvm_gui_config: Path, target_csv: Path) -> None:
     clean_addr = hex_address.strip().lower()
     hex_payload_str = raw_payload.hex().upper()
+    
+    if clean_addr == "0x0013":
+        handle_incoming_athena_radio_field_signal(hex_payload_str, config_data, kvm_gui_config, target_csv)
+        return
+        
     execute_matrix_mirror_routing(clean_addr, raw_payload, config_data)
     verify_live_sensor_safety_compliance(clean_addr, raw_payload, target_csv)
     decoded_readable_text = inline_multicore_hex_decode(hex_payload_str)
-    print(f"  [CORE PROCESSING RUNTIME] Address: {clean_addr} | Hex: {hex_payload_str} | Ascii: {decoded_readable_text}")
+    print(f"  [CORE PROCESSING FABRIC] Address: {clean_addr} | Hex: {hex_payload_str} | Ascii: {decoded_readable_text}")
 
 # ------------------------------------------------------------------------------
-# TYPER COMMANDS
+# TYPER COMMANDS: CORE DAEMON & ROUTING
 # ------------------------------------------------------------------------------
+def load_system_config(config_path: Path) -> Dict[str, Any]:
+    if config_path.exists():
+        with open(config_path, "r") as stream:
+            return yaml.safe_load(stream)
+    print(f"Configuration Fault: Path {config_path} not found.", file=sys.stderr)
+    raise typer.Exit(code=1)
+
 @app.command(name="listen-ports")
 def listen_ports_command(
-    config: Path = typer.Option(Path("config.yaml"), help="Path to the master system topology file registry configuration."),
-    visio_csv: Path = typer.Option(Path("visio_mapping.csv"), help="The target Data Visualizer file layout matching the audit matrix."),
-    network_port: int = typer.Option(8080, help="Local network socket port capturing virtual fiber lines.")
+    config: Path = typer.Option(Path("config.yaml"), help="Path to the master system rule configuration registry file."),
+    kvm_gui_config: Path = typer.Option(Path("gui_state.json"), help="Target layout json file tracking active KVM variable manifestations."),
+    visio_csv: Path = typer.Option(Path("visio_mapping.csv"), help="The target Data Visualizer flowchart file to log audits into."),
+    network_port: int = typer.Option(8080, help="Local network port simulating aggregate high-speed fiber interfaces.")
 ):
+    """Launches the multi-channel daemon, integrating Athena radio field telemetry processing with opto-electronic led loops."""
     global _active_serial_handles
-    if not config.exists():
-        print(f"Configuration Fault: Path {config} not found.", file=sys.stderr)
-        raise typer.Exit(code=1)
-    with open(config, "r") as f:
-        config_data = yaml.safe_load(f)
+    config_data = load_system_config(config)
+    
     print(f"\n======================================================================")
-    print(f"SLA ACCOUNTING & AUTONOMIC CORE FABRIC ONLINE: {config_data.get('system', {}).get('identity', 'UNIVAC-CORE')}")
+    print(f"ATHENA WIRELESS MULTIPLEXER DAEMON RUNNING: {config_data.get('system', {}).get('identity', 'UNIVAC-CORE-9')}")
     print(f"======================================================================")
-    inline_multicore_hex_decode("414243")
+    
+    inline_multicore_hex_decode("414243") # Warm up parallel caches
+    
     if "0x0014" not in _active_serial_handles:
         class DummySerial:
             def write(self, data): pass
         _active_serial_handles["0x0014"] = DummySerial()
+        
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server_socket.bind(("0.0.0.0", network_port))
@@ -368,10 +519,10 @@ def listen_ports_command(
         if not serial: continue
         try:
             ser = serial.Serial(port_path, baudrate=115200, timeout=0.01)
-            _active_serial_handles[node.get("hex_address", "").lower()] = ser
+            _active_serial_handles[node.get("hex_address").lower()] = ser
         except Exception: pass
 
-    print(f"[LIVE ENGINE] Port listeners activated. Financial SLA monitors armed and counting. (Ctrl+C to disarm)\n")
+    print(f"[LIVE MONITOR] Interface loops open. Scanning wired, socket, and wireless channels. (Ctrl+C to close)\n")
 
     try:
         while True:
@@ -383,7 +534,7 @@ def listen_ports_command(
                     payload_str = raw_buffer.decode('utf-8').strip()
                     if ":" in payload_str:
                         addr, data_hex = payload_str.split(":", 1)
-                        process_incoming_stream(addr.strip().lower(), bytes.fromhex(data_hex.strip()), config_data, visio_csv)
+                        process_incoming_stream(addr.strip().lower(), bytes.fromhex(data_hex.strip()), config_data, kvm_gui_config, visio_csv)
                 client_sock.close()
             except BlockingIOError: pass
             except Exception: pass
@@ -393,14 +544,14 @@ def listen_ports_command(
                 if not serial_conn.in_waiting: continue
                 raw_bytes = serial_conn.read(serial_conn.in_waiting)
                 if raw_bytes:
-                    process_incoming_stream(hex_addr, raw_bytes, config_data, visio_csv)
+                    process_incoming_stream(hex_addr, raw_bytes, config_data, kvm_gui_config, visio_csv)
 
             for running_breach_addr in list(_active_sla_breach_timers.keys()):
                 calculate_and_log_sla_credits(running_breach_addr, visio_csv)
-            time.sleep(0.01)
+            time.sleep(0.005)
 
     except KeyboardInterrupt:
-        print("\n[SHUTDOWN] Exiting tactical diagnostic network daemon safely. Financial ledgers saved.")
+        print("\n[SHUTDOWN] Exiting tactical diagnostic multiplexer engine. Active state files preserved.")
         server_socket.close()
         raise typer.Exit(code=0)
 
@@ -409,18 +560,70 @@ def route_signal_command(
     hex_address: str = typer.Argument(..., help="Target device hexadecimal address."),
     payload: str = typer.Argument(..., help="The hexadecimal input or output signal payload data."),
     config: Path = typer.Option(Path("config.yaml"), help="Path to the node configuration registry file."),
+    kvm_gui_config: Path = typer.Option(Path("gui_state.json"), help="Target layout json file tracking active KVM variable manifestations."),
     visio_csv: Path = typer.Option(Path("visio_mapping.csv"), help="The target data visualizer spreadsheet to write audits to.")
 ):
     global _active_serial_handles
-    with open(config, "r") as f:
-        config_data = yaml.safe_load(f)
+    config_data = load_system_config(config)
     if "0x0014" not in _active_serial_handles:
         class DummySerial:
             def write(self, data): pass
         _active_serial_handles["0x0014"] = DummySerial()
     raw_data = bytes.fromhex(payload.strip().upper())
-    process_incoming_stream(hex_address, raw_data, config_data, visio_csv)
+    process_incoming_stream(hex_address, raw_data, config_data, kvm_gui_config, visio_csv)
 
+# ------------------------------------------------------------------------------
+# TYPER COMMANDS: OPTO-ANALOG & DATA RECOVERY (NEW)
+# ------------------------------------------------------------------------------
+@app.command(name="compute-led-opto-analog")
+def compute_led_opto_analog_command(
+    input_voltage: float = typer.Argument(..., help="The analog control signal voltage string feeding the tube grid circuit segment."),
+    gain_factor: float = typer.Option(1.0, help="The amplification coefficient scalar parameter driving the opto-isolator loops.")
+):
+    """Simulates an vacuum tube analog calculator loop, translating voltages into precise LED output intensities."""
+    if input_voltage < 0.0:
+        print("[INPUT FAULT] Negative grid voltage parameters transcend physical filament tracking parameters.", file=sys.stderr)
+        raise typer.Exit(code=1)
+        
+    luminous_intensity_mcd = calculate_opto_analog_led_intensity(input_voltage, gain_factor)
+    
+    print(f"\n======================================================================")
+    print(f"UNIVAC OPTO-ELECTRONIC VACUUM TUBE EMULATION LOGIC REPORT")
+    print(f"======================================================================")
+    print(f"  -> Measured Grid Circuit Input Voltage: {input_voltage:.2f} V")
+    print(f"  -> Configured Amplification Gain Scalar: {gain_factor:.2f}")
+    print(f"  -> COMPUTED OVER-THE-WIRE LED OUTPUT INTENSITY: {luminous_intensity_mcd:.1f} mcd")
+    print(f"  -> [SENSOR ASSIGNMENT] Driving physical photo-diode receptors via opto-analog mathematical coupling.\n")
+
+@app.command(name="recover-storage")
+def recover_storage_command(
+    raw_dump: Path = typer.Argument(..., help="Path to the low-level raw binary drive image file partition."),
+    output_file: Path = typer.Argument(..., help="Target file path to save the reconstructed readable plaintext data script."),
+    encoding: str = typer.Option("FIELDATA", help="The source encoding schema specification (FIELDATA, EBCDIC).")
+):
+    """Deep carves legacy imagery files using multi-core parallel extraction pipelines."""
+    if not raw_dump.exists():
+        print(f"[RECOVERY FAULT] Image not found: '{raw_dump}'", file=sys.stderr)
+        raise typer.Exit(code=1)
+        
+    raw_bytes = np.fromfile(raw_dump, dtype=np.uint8)
+    if raw_bytes.shape[0] == 0:
+        return
+        
+    start_time = time.time()
+    match encoding.strip().upper():
+        case "FIELDATA": processed = parallel_cpu_carve_fieldata(raw_bytes)
+        case "EBCDIC": processed = parallel_cpu_carve_ebcdic(raw_bytes)
+        case _: raise typer.Exit(code=2)
+        
+    with open(output_file, "w", encoding="utf-8") as out:
+        out.write(bytes(processed).decode("ascii", errors="ignore"))
+        
+    print(f"[SUCCESS] Deep block carve executed in {(time.time() - start_time):.4f}s -> Output: '{output_file}'")
+
+# ------------------------------------------------------------------------------
+# TYPER COMMANDS: QUANTUM BRIDGE & PHYSICS (EXISTING)
+# ------------------------------------------------------------------------------
 class UnivacIXQuantumBridge:
     def __init__(self):
         print("[BOOT] Initializing Univac IX Quantum-State Bridge...")
@@ -495,40 +698,30 @@ def scan_recovered_data_command(
     if not target_file.exists():
         print(f"[RECON FAULT] Plaintext target asset file missing at path: '{target_file}'", file=sys.stderr)
         raise typer.Exit(code=1)
-        
     print(f"\n======================================================================")
     print(f"AUTOMATED MULTI-LINE INJECTION ENGINE // TARGET ASSET: {target_file.name}")
     print(f"======================================================================")
-    
     with open(target_file, "r", encoding="utf-8", errors="ignore") as f:
         file_lines = f.readlines()
-        
     current_gui_state: Dict[str, Any] = {}
     if kvm_gui_config.exists():
         try:
             with open(kvm_gui_config, "r", encoding="utf-8") as stream:
                 current_gui_state = json.load(stream)
-        except Exception:
-            pass
-            
+        except Exception: pass
     if "live_dashboard_vars" not in current_gui_state:
         current_gui_state["live_dashboard_vars"] = {}
-        
     total_matches_injected = 0
-    
     for line_idx, line_content in enumerate(file_lines):
         clean_line = line_content.strip()
         if not clean_line: continue
-            
         for classification_tag, regex_pattern in _INTELLIGENCE_PATTERNS.items():
             compiled_search = re.compile(regex_pattern, re.IGNORECASE)
             found_match = compiled_search.search(clean_line)
             if not found_match: continue
-                
             captured_token = found_match.group(1).strip()
             total_matches_injected += 1
             kvm_variable_key = f"REC_{classification_tag}_L{line_idx + 1}"
-            
             current_gui_state["live_dashboard_vars"][kvm_variable_key] = {
                 "value": captured_token,
                 "source": f"RECOVERY_SCANNER_LINE_{line_idx + 1}",
@@ -537,21 +730,17 @@ def scan_recovered_data_command(
             }
             sys.stdout.write("\a\a"); sys.stdout.flush()
             print(f"  -> [MAPPED INTEL] Variable {kvm_variable_key} => '{captured_token}' staged for injection.")
-            
             log_intelligence_hit_to_visio(classification_tag, captured_token, line_idx + 1, visio_csv)
             broadcast_intel_over_radio(classification_tag, captured_token)
-
     if total_matches_injected == 0:
         print("\n[RECON STATUS] Scan completed. Plaintext contains zero flagged operational signatures.\n")
         return
-        
     try:
         with open(kvm_gui_config, "w", encoding="utf-8") as target_out:
             json.dump(current_gui_state, target_out, indent=2, ensure_ascii=False)
     except Exception as io_err:
         print(f"[KVM INJECTION FAULT] Failed to write automated multi-line list update: {io_err}", file=sys.stderr)
         raise typer.Exit(code=2)
-        
     print(f"\n[INJECTION COMPLETE] Successfully parsed file and synchronized data matrices.")
     print(f"  -> Total Multi-Line List Nodes Appended: {total_matches_injected}")
 
@@ -568,19 +757,15 @@ def simulate_actuators_command(
     bores_meters = np.random.uniform(0.05, 0.25, total_actuators)   
     rods_meters = np.random.uniform(0.02, 0.12, total_actuators)    
     directions_binary = np.random.choice([0, 1], total_actuators)   
-    
     dummy_p, dummy_b, dummy_r, dummy_d = np.array([6e6]), np.array([0.1]), np.array([0.05]), np.array([1])
     parallel_cpu_compute_actuator_stresses(dummy_p, dummy_b, dummy_r, dummy_d)
-    
     start_time = time.time()
     forces_output_newtons = parallel_cpu_compute_actuator_stresses(pressures_pascal, bores_meters, rods_meters, directions_binary)
     execution_duration = time.time() - start_time
-    
     max_measured_force_kn = np.max(forces_output_newtons) / 1000.0
     print(f"[SUCCESS] Actuator kinematics mapped natively in {execution_duration:.5f} seconds.")
     print(f"  -> Mean Extracted Output Thrust Force: {(np.mean(forces_output_newtons)/1000.0):.2f} kN")
     print(f"  -> Maximum Isolated Critical Piston Load: {max_measured_force_kn:.2f} kN")
-    
     if max_measured_force_kn > safety_max_force_kn:
         sys.stdout.write("\a\a\a"); sys.stdout.flush()
         print("\n" + "!" * 80)
@@ -597,16 +782,12 @@ def analyze_rotary_balance_command(mass_nodes_count: int = typer.Option(5)):
     masses_kg = np.random.uniform(0.5, 12.0, mass_nodes_count)
     radii_meters = np.random.uniform(0.1, 0.8, mass_nodes_count)
     angles_degrees = np.random.uniform(0.0, 360.0, mass_nodes_count)
-    
     dummy_m, dummy_rad, dummy_ang = np.array([1.0]), np.array([0.5]), np.array([45.0])
     parallel_cpu_verify_mass_balance(dummy_m, dummy_rad, dummy_ang)
-    
     imbalance_vectors = parallel_cpu_verify_mass_balance(masses_kg, radii_meters, angles_degrees)
     net_imbalance_magnitude = math.sqrt((imbalance_vectors[0] ** 2) + (imbalance_vectors[1] ** 2))
-    
     counter_angle_deg = (math.atan2(-imbalance_vectors[1], -imbalance_vectors[0]) * 180.0) / math.pi
     if counter_angle_deg < 0.0: counter_angle_deg += 360.0
-        
     print(f"  -> Net Unmitigated Mechanical Centrifugal Imbalance: {net_imbalance_magnitude:.4f} kg·m")
     print(f"  -> Calculated Counterweight Vector Correction Angle: {counter_angle_deg:.2f}° Heading")
 
@@ -628,39 +809,29 @@ def audit_kg58_to_visio_command(
     sim_count: int = typer.Option(5),
     max_safe_kn: float = typer.Option(50.0)
 ):
-    if not visio_csv.exists():
-        raise typer.Exit(code=1)
+    if not visio_csv.exists(): raise typer.Exit(code=1)
     np.random.seed(2026)
     pressures_pascal = np.random.uniform(5e6, 40e6, sim_count)
     bores_meters = np.random.uniform(0.08, 0.22, sim_count)
     rods_meters = np.random.uniform(0.03, 0.10, sim_count)
     directions_binary = np.random.choice([0, 1], sim_count)
-    
     forces_output_newtons = parallel_cpu_compute_actuator_stresses(pressures_pascal, bores_meters, rods_meters, directions_binary)
     for idx in range(sim_count):
         append_mechanical_audit_to_visio(idx, forces_output_newtons[idx], max_safe_kn, visio_csv)
     print(f"\n[AUDIT COMPLETED] Real-time models appended to: '{visio_csv.name}'\n")
 
-# ------------------------------------------------------------------------------
-# COMMAND: MAP KINETICS TO KVM (NEW)
-# ------------------------------------------------------------------------------
 @app.command(name="map-kinetics-to-kvm")
 def map_kinetics_to_kvm_command(
     kvm_gui_config: Path = typer.Argument(..., help="Path to your active Univac_Sperry_KVM_GUI state layout file (e.g., gui_state.json)."),
     device_count: int = typer.Option(3, help="Total connected motors or servo shafts to evaluate and manifest into the dashboard panel views.")
 ):
-    """Parses real-time kinetic parameters, rectifies plane angle orientation anomalies, and streams live variables straight into KVM configs."""
     print(f"\n======================================================================")
     print(f"UNIVAC-IX ORIENTATION RECTIFICATION CORE // TARGET KVM: {kvm_gui_config.name}")
     print(f"======================================================================")
-    print(f"[PHYSICS] Ingesting multi-axis angular metrics across {device_count} servo motor junctions...")
-    
     np.random.seed(55)
-    
     forces_newtons = np.random.uniform(50.0, 500.0, device_count)
     arm_lengths_meters = np.random.uniform(0.05, 0.4, device_count)
     force_incidence_angles = np.random.uniform(30.0, 90.0, device_count)
-    
     orientation_plane_angles = np.array([0.0, 90.0, 45.0], dtype=np.float64)[:device_count]
     if device_count > 3:
         padding = np.random.uniform(0.0, 90.0, device_count - 3)
@@ -674,8 +845,10 @@ def map_kinetics_to_kvm_command(
         measured_plane_angle = orientation_plane_angles[idx]
         computed_torque = adjusted_torques_matrix[idx]
         inject_servo_metrics_to_kvm_config(idx, measured_plane_angle, computed_torque, kvm_gui_config)
-
     print(f"\n[INJECTION COMPLETE] Unified kinematics synchronized. All device angles are cleanly labeled inside your KVM GUI view templates.\n")
 
+# ------------------------------------------------------------------------------
+# ENTRY POINT
+# ------------------------------------------------------------------------------
 if __name__ == "__main__":
     app()
