@@ -1,6 +1,6 @@
 # File Name: orbital_kinematics_engine.py
 # Location: /src/modules/
-# Subsystem: Orbital Velocity & Altitude Prediction Engine
+# Subsystem: Orbital Velocity & Altitude Prediction Engine UPDATED
 # Copyright (c) 2026 Revolutionary Technology
 
 import math
