@@ -1,6 +1,6 @@
 # File Name: athena_fire_control_computer.py
 # Location: /src/modules/
-# Subsystem: Athena Ballistic Trajectory & Fire Control Core
+# Subsystem: Athena Ballistic Trajectory & Fire Control Core UPDATED
 # Copyright (c) 2026 Revolutionary Technology
 
 import time
