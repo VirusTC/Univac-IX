@@ -25,7 +25,7 @@ try:
 except ImportError:
     serial = None
 
-app = typer.Typer(help="UNIVAC-IX Sovereignty Ultimate Unified Tactical Field Recovery Engine & DB Parser")
+app = typer.Typer(help="UNIVAC-IX Total Telecommunications, Cray Supercomputing, & PLC Autonomic Recovery Core Fabric")
 
 # ------------------------------------------------------------------------------
 # GLOBAL STATE & SLA REGISTERS
@@ -178,7 +178,6 @@ def parallel_cpu_decode_tone_matrix(low_freqs: np.ndarray, high_freqs: np.ndarra
 
 @njit(cache=True, fastmath=True)
 def parse_morse_symbol_to_ascii(bit_pattern: int, pattern_len: int) -> int:
-    """Decodes compressed binary dot-dash sequences into uppercase alphanumeric characters."""
     if pattern_len == 2:
         if bit_pattern == 12: return 65  
         if bit_pattern == 21: return 78  
@@ -197,25 +196,70 @@ def parse_morse_symbol_to_ascii(bit_pattern: int, pattern_len: int) -> int:
 
 @njit(parallel=True, cache=True, fastmath=True)
 def parallel_cpu_decode_morse_matrix(patterns: np.ndarray, lengths: np.ndarray) -> np.ndarray:
-    """Processes arrays of telegraph wave carriers concurrently using all host execution CPU threads."""
     total_elements = patterns.shape[0]
     output_chars = np.zeros(total_elements, dtype=np.uint8)
     for i in prange(total_elements):
         output_chars[i] = parse_morse_symbol_to_ascii(patterns[i], lengths[i])
     return output_chars
 
-def dispatch_to_vendor_backplane(vendor_name: str, payload_text: str) -> None:
-    match vendor_name:
-        case "ORACLE":
-            print(f"  [VENDOR -> ORACLE] Injecting structured entity transaction into high-memory pooling table blocks -> {payload_text}")
-        case "IBM":
-            print(f"  [VENDOR -> IBM DB2] Converting block to host EBCDIC variables segment for storage validation -> {payload_text}")
-        case "BRADLEY":
-            print(f"  [VENDOR -> ALLEN-BRADLEY] Triggering CIP Routing over EtherNet/IP register slots -> {payload_text}")
-        case "HBE":
-            print(f"  [VENDOR -> HBE] Publishing real-time metric strings to OPC-UA proxy node frames -> {payload_text}")
-        case _:
-            print(f"  [VENDOR ROUTE DEFERRED] Unknown vendor architecture: {vendor_name}")
+@njit(cache=True, fastmath=True)
+def decode_baudot_character(baudot_bits: int) -> int:
+    """Translates a raw 5-bit historical Baudot telegraph character code into standard ASCII integer parameters."""
+    if baudot_bits == 0x03: return 65  
+    if baudot_bits == 0x19: return 66  
+    if baudot_bits == 0x0E: return 67  
+    if baudot_bits == 0x09: return 68  
+    if baudot_bits == 0x01: return 69  
+    if baudot_bits == 0x04: return 32  
+    if baudot_bits == 0x08: return 10  
+    return 63  
+
+@njit(cache=True, fastmath=True)
+def decode_mu_law_telephony_sample(mu_law_byte: int) -> int:
+    """Expands 8-bit non-linear G.711 telephony audio channels back into linear 16-bit PCM variables."""
+    inverted_byte = ~mu_law_byte
+    sign_bit = (inverted_byte >> 7) & 0x01
+    exponent = (inverted_byte >> 4) & 0x07
+    mantissa = inverted_byte & 0x0F
+    linear_magnitude = (mantissa << 3) + 132
+    linear_magnitude <<= exponent
+    linear_magnitude -= 132
+    if sign_bit == 1:
+        return linear_magnitude
+    return -linear_magnitude
+
+@njit(parallel=True, cache=True, fastmath=True)
+def parallel_cpu_expand_pcm_stream(mu_law_buffer: np.ndarray) -> np.ndarray:
+    """Expands continuous digital phone carrier lines natively across multi-core processors at max speeds."""
+    total_samples = mu_law_buffer.shape[0]
+    output_linear_pcm = np.zeros(total_samples, dtype=np.int16)
+    for i in prange(total_samples):
+        output_linear_pcm[i] = decode_mu_law_telephony_sample(mu_law_buffer[i])
+    return output_linear_pcm
+
+# ------------------------------------------------------------------------------
+# CRAY SUPERCOMPUTING MATRIX
+# ------------------------------------------------------------------------------
+@njit(cache=True, fastmath=True)
+def convert_gray_to_binary_64(gray_word: int) -> int:
+    """Decodes high-speed Cray Supercomputer Gray Code words into native standard binary formats."""
+    binary_word = gray_word
+    binary_word ^= (binary_word >> 32)
+    binary_word ^= (binary_word >> 16)
+    binary_word ^= (binary_word >> 8)
+    binary_word ^= (binary_word >> 4)
+    binary_word ^= (binary_word >> 2)
+    binary_word ^= (binary_word >> 1)
+    return binary_word
+
+@njit(parallel=True, cache=True, fastmath=True)
+def parallel_cpu_decode_cray_matrix(gray_array: np.ndarray) -> np.ndarray:
+    """Processes massive arrays of Cray supercomputer telemetry channels concurrently across all CPU threads."""
+    total_elements = gray_array.shape[0]
+    output_binary_array = np.zeros(total_elements, dtype=np.uint64)
+    for i in prange(total_elements):
+        output_binary_array[i] = convert_gray_to_binary_64(gray_array[i])
+    return output_binary_array
 
 # ------------------------------------------------------------------------------
 # KOMMANDOGERAT-58 PHYSICS ENGINEERING CORE (JIT COMPILED)
@@ -322,6 +366,20 @@ def broadcast_intel_over_radio(pattern_type: str, exact_match: str) -> None:
         _active_serial_handles[radio_tx_addr].write(bytes.fromhex(radio_msg.encode("utf-8").hex().upper()))
     except Exception: pass
 
+def dispatch_to_vendor_backplane(vendor_name: str, payload_text: str) -> None:
+    """Directly routes interpreted PLC instructions into specific corporate database and assembly networks."""
+    match vendor_name:
+        case "ORACLE":
+            print(f"  [VENDOR -> ORACLE] Injecting structured entity transaction into high-memory pooling table blocks -> {payload_text}")
+        case "IBM":
+            print(f"  [VENDOR -> IBM DB2] Converting block to host EBCDIC variables segment for storage validation -> {payload_text}")
+        case "BRADLEY":
+            print(f"  [VENDOR -> ALLEN-BRADLEY] Triggering CIP Routing over EtherNet/IP register slots -> {payload_text}")
+        case "HBE":
+            print(f"  [VENDOR -> HBE] Publishing real-time metric strings to OPC-UA proxy node frames -> {payload_text}")
+        case _:
+            print(f"  [VENDOR ROUTE DEFERRED] Unknown vendor architecture: {vendor_name}")
+
 # ------------------------------------------------------------------------------
 # HEURISTIC FINGERPRINTING & SLA TIMERS
 # ------------------------------------------------------------------------------
@@ -378,6 +436,28 @@ def verify_live_sensor_safety_compliance(hex_address: str, raw_payload_bytes: by
 # ------------------------------------------------------------------------------
 # CORE DATA ROUTER & LATENCY MANAGER
 # ------------------------------------------------------------------------------
+def evaluate_telegraphic_overrides(resolved_char: str, config_data: Dict[str, Any], visio_csv: Path, kvm_json: Path) -> None:
+    """Interceptors monitor decoded telegraph characters and automatically blast emergency override handshakes to target PLCs."""
+    overrides_list = config_data.get("telegraphic_handshake_overrides", [])
+    for rule in overrides_list:
+        morse_pattern = rule.get("trigger_morse_pattern", 0)
+        expected_char = chr(parse_morse_symbol_to_ascii(morse_pattern, 3))
+        if expected_char != resolved_char:
+            continue
+            
+        reply_hex = rule.get("reply_hex_vector", "")
+        target_plc = rule.get("target_plc", "GENERIC_PLC")
+        label = rule.get("label", "EMERGENCY_RESET")
+        
+        print(f"\n  [TELEGRAPH OVERRIDE ACTIVE] Key pattern match found: '{resolved_char}' triggers rule {label}.")
+        print(f"  [PLC POLICING ACTION] Automatically dispatching recovery handshake {reply_hex} directly into {target_plc} backplane...")
+        
+        update_kvm_json_state(kvm_json, f"PLC_OVERRIDE_{target_plc}", f"EXECUTED_{label}", "TELEGRAPHIC_INTERCEPTOR")
+        epoch_stamp = int(time.time())
+        node_id = f"TEL_OVERRIDE_{epoch_stamp}_{target_plc}"
+        desc = f"Telegraph interceptor forced autonomic handshake {reply_hex} to {target_plc} on keyword match."
+        append_event_to_visio_csv(visio_csv, node_id, label, desc, "PLC_OVERRIDE", "TACTICAL_HANDSHAKE", "WIRELESS_MESH", "0x0014", "DRIVER_TELEGRAPH_POLICING", "CRITICAL_TRAP_ENGAGED", "Red")
+
 def purge_stale_hardware_channels(latency_timeout_seconds: float, visio_csv: Path) -> None:
     """Flushes out silent, dead, or disconnected serial ports to eliminate cycle latency."""
     global _active_serial_handles, _last_channel_activity_timestamps
@@ -593,23 +673,64 @@ def parse_dialup_stream_command(
     dispatch_to_vendor_backplane(vendor_target.strip().upper(), f"CMD_TOKEN_{resolved_char}")
     print()
 
-@app.command(name="decode-morse-stream")
-def decode_morse_stream_command(
-    bit_pattern: int = typer.Argument(..., help="Binary sequence array encoding for the Morse character (1 = Dit, 2 = Dah)."),
-    pattern_len: int = typer.Argument(..., help="The explicit element length step count of the token sequence group.")
+@app.command(name="demodulate-telegraph")
+def demodulate_telegraph_command(
+    bit_pattern: int = typer.Argument(..., help="The binary element structure of the Morse pulse sequence or raw Baudot code."),
+    pattern_len: int = typer.Argument(..., help="The data length of the targeted token profile (Use 5 for Baudot channels)."),
+    config: Path = typer.Option(Path("config.yaml"), help="Path to the system configuration registry file."),
+    visio_csv: Path = typer.Option(Path("visio_mapping.csv"), help="The target data visualizer audit sheet path."),
+    kvm_json: Path = typer.Option(Path("gui_state.json"), help="The active operator console dashboard json template file.")
 ):
-    """Processes complex variable-length Morse telegraph strings via Numba parallel translation matrices."""
+    """Demodulates historical Morse/Baudot telegraph signals, running real-time autonomic handshake overrides on PLC layers on key matches."""
+    config_data = load_system_config(config)
+    
+    if pattern_len == 5:
+        # Process historical printing telegraph Baudot streams
+        ascii_code = decode_baudot_character(bit_pattern)
+        resolved_char = chr(ascii_code)
+        print(f"\n[TELEGRAPH DEMODULATION] Decoded 5-Bit Baudot Printing Stream character: '{resolved_char}'")
+        evaluate_telegraphic_overrides(resolved_char, config_data, visio_csv, kvm_json)
+        return
+        
+    # Process standard variable-length continuous wave Morse code patterns
     pat_arr = np.array([bit_pattern], dtype=np.int32)
     len_arr = np.array([pattern_len], dtype=np.int32)
     decoded_codes = parallel_cpu_decode_morse_matrix(pat_arr, len_arr)
+    resolved_char = chr(decoded_codes[0])
     
-    resolved_character = chr(decoded_codes[0])
+    print(f"\n[TELEGRAPH DEMODULATION] Decoded Continuous Wave Morse Telegraph Character: '{resolved_char}'")
+    evaluate_telegraphic_overrides(resolved_char, config_data, visio_csv, kvm_json)
+
+@app.command(name="process-cray-telemetry")
+def process_cray_telemetry_command(
+    gray_code_hex: str = typer.Argument(..., help="The raw 64-bit Gray code telemetry word pulled from the supercomputer backplane (e.g. 7FFFFFFFFFFFFFFF).")
+):
+    """Processes raw Cray Supercomputer Gray code matrices across multi-core systems with cached instructions."""
+    raw_gray_word = np.uint64(int(gray_code_hex.strip(), 16))
+    gray_input_matrix = np.array([raw_gray_word], dtype=np.uint64)
     
-    print(f"\n======================================================================")
-    print(f"UNIVAC-IX TELEGRAPH MORSE CONTINUOUS WAVE DEMODULATION // LINK: MIL-STD-1397")
-    print(f"======================================================================")
-    print(f"  -> Input Binary Element Code Block: {bit_pattern}")
-    print(f"  -> Extracted Plaintext Character:   '{resolved_character}'\n")
+    print("\n[CRAY VECTOR ENGINE] Ingesting supercomputing telemetry register fields...")
+    start_time = time.time()
+    binary_output_matrix = parallel_cpu_decode_cray_matrix(gray_input_matrix)
+    execution_duration = time.time() - start_time
+    
+    resolved_binary_word = binary_output_matrix[0]
+    print(f"[CRAY VECTOR ENGINE SUCCESS] Gray code conversion complete in {execution_duration:.6f} seconds.")
+    print(f"  -> Raw Input Gray Hex:   {gray_code_hex.upper()}")
+    print(f"  -> Corrected Binary Hex: {hex(resolved_binary_word).upper()}\n")
+
+@app.command(name="expand-telephony-audio")
+def expand_telephony_audio_command(
+    mu_law_hex_byte: str = typer.Argument(..., help="The raw non-linear G.711 telephony audio sample byte (e.g. FF).")
+):
+    """Expands incoming μ-Law telephony digital telephone line streams into linear variables for signal matching."""
+    raw_byte_val = int(mu_law_hex_byte.strip(), 16)
+    audio_buffer = np.array([raw_byte_val], dtype=np.uint8)
+    linear_pcm_output = parallel_cpu_expand_pcm_stream(audio_buffer)[0]
+    
+    print(f"\n[TELEPHONY LINE EXPANSION] Processing G.711 μ-Law carrier channel block...")
+    print(f"  -> Input Compressed μ-Law:  0x{mu_law_hex_byte.upper()}")
+    print(f"  -> Restored Linear PCM Value: {linear_pcm_output} Units\n")
 
 @app.command(name="carve-db-dump")
 def carve_db_dump_command(
