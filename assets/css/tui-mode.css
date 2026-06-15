@@ -1,0 +1,86 @@
+#tui-matrix-container {
+    background-color: #0c0c0c;
+    padding: 15px;
+    font-family: 'Fixedsys Excelsior', 'Glass TTY VT220', monospace;
+    font-size: 18px;
+    line-height: 20px;
+    letter-spacing: 0.5px;
+    height: 100%;
+    box-sizing: border-box;
+}
+
+.tui-row {
+    display: flex;
+    white-space: pre;
+    height: 20px;
+}
+
+.tui-cell {
+    width: 11px;
+    height: 20px;
+    display: inline-block;
+}
+
+/* Protected Labels: Low intensity P31 Phosphorus Green */
+.tui-attr-protected {
+    color: #00aa00;
+}
+
+/* Unprotected Data Inputs: Reverse Video (solid block color) */
+.tui-attr-input {
+    background-color: #33ff33;
+    color: #000000;
+}
+
+/* Bottom Hardware System Diagnostics Row */
+.tui-attr-status {
+    background-color: #003300;
+    color: #33ff33;
+    font-weight: bold;
+    border-top: 1px solid #33ff33;
+}
+
+/* Blinking Solid Block Terminal Hardware Cursor */
+.sperry-cursor {
+    animation: sperry-blink 0.8s infinite steps(1, start);
+}
+
+@keyframes sperry-blink {
+    0%, 100% {
+        background-color: #33ff33;
+        color: #000000;
+    }
+    50% {
+        background-color: transparent;
+        color: #33ff33;
+    }
+}
+/* Standard Operational State: Low Intensity Olive/Green */
+.tui-attr-status-normal {
+    background-color: #002200;
+    color: #33ff33;
+    font-weight: bold;
+    border-top: 1px solid #00aa00;
+}
+
+/* Warning State (Interrupted/lost frames retry loop): Saturated Amber */
+.tui-attr-status-warn {
+    background-color: #3a2000;
+    color: #ffb000;
+    font-weight: bold;
+    border-top: 1px solid #ffb000;
+}
+
+/* Critical Hardware Failure (Bridge link drop out completely): Saturated Crimson */
+.tui-attr-status-crit {
+    background-color: #4a0004;
+    color: #ffffff;
+    font-weight: bold;
+    border-top: 1px solid #D1172B; /* Matches your Crimson Red KVM button accent */
+}
+
+/* Visual pulse animation style for typing violations on locked lines */
+.hardware-flash-alert {
+    filter: brightness(2.5);
+    background-color: #d1172b !important;
+}

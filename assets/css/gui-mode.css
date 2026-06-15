@@ -1,0 +1,298 @@
+/* Precise WinForms / Windows Aero Basic Emulation */
+.sperry-software-window {
+    width: 550px;
+    height: 468px;
+    background-color: #DDE7F5; /* Genuine WinForms Window Face/Border Blue */
+    font-family: 'Tahoma', 'Segoe UI', sans-serif;
+    font-size: 11px;
+    color: #000000;
+    box-sizing: border-box;
+    padding: 5px;
+    border-radius: 5px 5px 0 0;
+    box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.25);
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+/* Window Title Bar Styling */
+.winforms-titlebar {
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 4px;
+    color: #1E395B;
+    font-size: 11px;
+}
+
+.titlebar-left {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.sperry-app-icon {
+    width: 16px;
+    height: 16px;
+    /* Red/Blue Sperry Add-in icon placeholder */
+    background: radial-gradient(circle, #E14A1D 40%, #1A428A 41%);
+    border-radius: 2px;
+}
+
+/* Inner Application Canvas Canvas Background */
+.winforms-canvas {
+    background-color: #F0F5FA; /* Inner window body background tint */
+    border: 1px solid #9BB4D6; /* Hard-coded classic client pane frame line */
+    height: calc(100% - 24px);
+    position: relative;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* Header Banner Plate with Orange-to-Yellow Brand Gradient */
+.sperry-brand-banner {
+    height: 62px;
+    background: linear-gradient(to right, #F7931E 0%, #FFD200 45%, #FFFFFF 85%);
+    border-bottom: 1px solid #718BB7;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-left: 12px;
+}
+
+.banner-title-text {
+    font-family: 'Arial', sans-serif;
+    font-weight: bold;
+    font-size: 19px;
+    color: #032E6A; /* Deep Navy Blue header copy */
+    letter-spacing: -0.5px;
+}
+
+/* Standard WinForms GroupBox container panel layout configuration */
+.winforms-groupbox {
+    border: 1px solid #A0A0A0;
+    border-radius: 3px;
+    margin-top: 10px;
+    padding: 10px 8px 8px 8px;
+    position: relative;
+    box-sizing: border-box;
+}
+
+.winforms-groupbox-legend {
+    position: absolute;
+    top: -6px;
+    left: 8px;
+    background-color: #F0F5FA;
+    padding: 0 4px;
+    font-size: 11px;
+    color: #000000;
+}
+
+/* Left-Pane Grid Table Frame Configuration */
+.addins-table-frame {
+    width: 100%;
+    height: 100%;
+    background-color: #C2D1E5; /* Table canvas background gray-blue container fill */
+    border: 1px solid #7F9DB9;
+    box-sizing: border-box;
+}
+
+.addins-table-header {
+    height: 20px;
+    background: linear-gradient(to bottom, #FFF0D0 0%, #FFD393 100%); /* Table Header Row Light Orange */
+    border-bottom: 1px solid #D6A86B;
+    display: flex;
+    font-size: 11px;
+}
+
+.table-header-cell {
+    padding: 3px 5px;
+    border-right: 1px solid #D6A86B;
+    font-weight: normal;
+}
+
+.addins-table-row {
+    background-color: #FFFFFF;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid #E3E3E3;
+}
+
+/* Windows Native Standard Click Dialog Buttons Styling */
+.winforms-btn {
+    height: 22px;
+    min-width: 75px;
+    background: linear-gradient(to bottom, #FCFDFE 0%, #E4ECF7 100%);
+    border: 1px solid #707070;
+    border-radius: 3px;
+    color: #000000;
+    font-family: 'Tahoma', sans-serif;
+    font-size: 11px;
+    cursor: pointer;
+    box-shadow: inset 0 1px 0 #FFFFFF;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 8px;
+}
+
+.winforms-btn:active {
+    background: linear-gradient(to bottom, #C9D9ED 0%, #E4ECF7 100%);
+    box-shadow: inset 0 1px 2px rgba(0,0,0,0.15);
+}
+
+/* Form inputs styling structure alignments */
+.winforms-input-text {
+    height: 20px;
+    border: 1px solid #7F9DB9;
+    padding: 2px 4px;
+    font-family: 'Tahoma', sans-serif;
+    font-size: 11px;
+    box-sizing: border-box;
+    outline: none;
+}
+/* HOOK 1: Application Window Top-Left Menu Icon Target Area */
+.sperry-app-icon-slot {
+    width: 16px;
+    height: 16px;
+    background-image: url('../branding/sperry-software-icon.png');
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    /* Red-Blue fallback icon if your file path isn't loaded yet */
+    background-color: #E14A1D; 
+}
+
+/* HOOK 2: Embedded Sunburst Brand Text Logo Inside the Banner Header */
+.banner-left-logo-slot {
+    width: 120px;
+    height: 45px;
+    position: absolute;
+    left: 12px;
+    top: 8px;
+    background-image: url('../branding/sperry-logo-gold.svg');
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: left center;
+}
+
+/* Compensate space inside the banner for text alignment next to the logo logo target */
+.banner-title-text {
+    margin-left: 130px; 
+    font-family: 'Arial', sans-serif;
+    font-weight: bold;
+    font-size: 19px;
+    color: #032E6A;
+    letter-spacing: -0.5px;
+    z-index: 2;
+}
+
+/* HOOK 3: Right Side Office Professional Banner Clip Art Backdrop Panel */
+.banner-right-photo-slot {
+    width: 240px;
+    height: 62px;
+    position: absolute;
+    right: 0;
+    top: 0;
+    background-image: url('../branding/corporate-banner-bg.png');
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-position: right center;
+    z-index: 1;
+}
+
+/* HOOK 4: Grid Data Table Inside Cell Element Icons */
+.table-cell-icon-slot {
+    width: 32px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-right: 1px solid #D6A86B;
+    background-image: url('../branding/addin-bell-icon.png');
+    background-size: 16px 16px;
+    background-repeat: no-repeat;
+    background-position: center;
+}
+/* Precise Alignment Framework for the Solid White KVM Cycle Button */
+#kvm-big-red-cycle {
+    position: absolute;
+    left: 0;
+    top: 0;
+    
+    /* Matches standard system titlebars and notification widths exactly */
+    height: 60px; 
+    width: 44px;  
+    
+    /* Updated Color Configuration to #FFFFFF */
+    background: #FFFFFF;
+    border: none;
+    border-right: 1px solid #C0C0C0; /* Muted gray border line */
+    color: #000000; /* Dark black text for high-contrast visibility against white */
+    
+    /* Univac Required Typography Properties */
+    font-family: "Courier New", "Courier", "Lucida Console", monospace;
+    font-weight: bold;
+    font-style: italic;
+    font-size: 11px;
+    letter-spacing: -0.5px;
+    text-align: center;
+    padding: 0;
+    cursor: pointer;
+    
+    /* Clean shadow treatment for a physical flat tile look */
+    box-shadow: 1px 0px 3px rgba(0,0,0,0.1);
+    z-index: 100;
+}
+
+#kvm-big-red-cycle:active {
+    background: #F0F0F0; /* Clean light gray highlight when active/pressed */
+    box-shadow: inset 1px 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* Fluid responsive adjustment to clean mesh matrix sizes */
+.cuda-grid-matrix-mesh {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 1px;
+    background-color: #050505;
+    border: 1px solid #7F9DB9;
+    padding: 2px;
+    height: 76px;
+    box-sizing: border-box;
+}
+
+/* Extinguished/Idle Core Hardware Processing Elements State */
+.cuda-core-node {
+    background-color: #252A12; /* Muted olive undertone matching legacy glass filters */
+    border-radius: 1px;
+    border: 1px solid #050505;
+    transition: background-color 0.05s ease;
+}
+
+/* Firing thread processing blocks match legacy shade exactly */
+.cuda-core-node.core-thread-firing {
+    background-color: rgb(196, 214, 77) !important;
+    box-shadow: 0 0 5px rgb(196, 214, 77);
+}
+
+/* Classic Compiler Typography Window Wrapper */
+.cuda-compiler-log-terminal {
+    flex-grow: 1;
+    background-color: #050505;
+    border: 1px solid #7F9DB9;
+    padding: 4px;
+    font-family: 'Courier New', monospace;
+    font-size: 9px;
+    line-height: 11px;
+    
+    /* Set display text characters directly to rgb(196, 214, 77) */
+    color: rgb(196, 214, 77) !important;
+    
+    overflow-y: scroll;
+    white-space: pre-wrap;
+    box-shadow: inset 0px 2px 4px rgba(0,0,0,0.9);
+    height: 76px;
+}

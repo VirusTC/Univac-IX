@@ -1,0 +1,413 @@
+/* Matte Black Brushed Hardware Chassis Styling */
+.vst-console-frame {
+    background-color: #121212;
+    padding: 20px;
+    height: 100%;
+    color: #4AD2FF; /* Retro Technical Cyan Lineart */
+    font-family: monospace;
+    overflow-y: auto;
+}
+
+.vst-console-header {
+    display: flex;
+    justify-content: space-between;
+    border-bottom: 2px solid #4AD2FF;
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+}
+
+.vst-brand-text { font-size: 24px; font-weight: bold; letter-spacing: 2px; color: #e6e6e6;}
+.vst-star { color: #38A1DB; }
+.vst-model-text { font-size: 24px; color: #e6e6e6; }
+
+.vst-zone {
+    border: 1px solid #1f5066;
+    background-color: #161616;
+    padding: 15px;
+    margin-bottom: 20px;
+    border-radius: 4px;
+}
+
+.vst-zone h3 {
+    font-size: 12px;
+    margin-bottom: 15px;
+    color: #38A1DB;
+    letter-spacing: 1px;
+}
+
+/* Touch-optimized Fluid Responsive Grid Setup */
+.vst-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 20px;
+}
+
+/* Base Form Control Layout Containers */
+.vst-switch-container, .vst-knob-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background-color: #1c1c1c;
+    border-radius: 6px;
+    padding: 10px;
+    border: 1px solid #2a2a2a;
+}
+
+.vst-ctrl-label {
+    font-size: 10px;
+    text-align: center;
+    margin-bottom: 8px;
+    color: #a0a0a0;
+    height: 24px;
+}
+
+/* Touch Safe Bounding Boxes (Minimum target bounds matching Fitts's Law) */
+.vst-switch-hitbox, .vst-knob-touch-zone {
+    min-width: 56px;
+    min-height: 80px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-around;
+    width: 100%;
+}
+
+/* Physical Mechanical Components Assembly rendering graphics */
+.vst-switch-track {
+    width: 14px;
+    height: 36px;
+    background-color: #0b0b0b;
+    border-radius: 3px;
+    position: relative;
+    border: 1px solid #333;
+}
+
+.vst-switch-toggle-handle {
+    width: 18px;
+    height: 14px;
+    background: linear-gradient(to bottom, #cccccc 0%, #777777 100%);
+    border-radius: 2px;
+    position: absolute;
+    left: -3px;
+    top: 2px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.8);
+    transition: top 0.1s linear;
+}
+
+/* Active Down Flip state positioning override execution logic */
+.vst-switch-track.active-down .vst-switch-toggle-handle {
+    top: 20px;
+    background: linear-gradient(to bottom, #777777 0%, #cccccc 100%);
+}
+
+.vst-switch-text { font-size: 9px; color: #666; }
+
+/* VST Knob Styling */
+.vst-physical-dial {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: radial-gradient(circle, #3a3a3a 0%, #1a1a1a 80%);
+    border: 2px solid #444;
+    position: relative;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.5);
+}
+
+.vst-dial-pointer-line {
+    width: 4px;
+    height: 20px;
+    background-color: #4AD2FF;
+    position: absolute;
+    top: 4px;
+    left: 20px;
+    transform-origin: bottom center;
+    transform: rotate(-120deg); /* Start minimum angle point anchor */
+}
+
+.vst-knob-display-val {
+    font-size: 12px;
+    color: #fff;
+    margin-top: 6px;
+    font-weight: bold;
+}
+/* Marine Shipboard Radio Room Gray Canvas Aesthetic */
+.vst-console-frame.gray-marine {
+    background-color: #5A656E; /* Industrial Navy/Marine Medium Gray */
+    color: #FFFFFF;
+    border: 4px solid #3A4248;
+}
+
+.vst-console-header.line-navy {
+    border-bottom: 3px solid #1C2B36;
+}
+
+.radio-split-workspace {
+    display: flex;
+    gap: 20px;
+    width: 100%;
+    height: calc(100% - 50px);
+    box-sizing: border-box;
+}
+
+.radio-rack-column {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background-color: #454D54; /* Darker interior well panel backing */
+    padding: 12px;
+    border-radius: 6px;
+    border: 2px solid #2F353A;
+    overflow-y: auto;
+}
+
+.radio-rack-column h2 {
+    font-size: 11px;
+    color: #FFD200; /* High-visibility deck stencil coloring */
+    letter-spacing: 1px;
+    margin-bottom: 10px;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+    border-bottom: 1px dashed #5A656E;
+    padding-bottom: 4px;
+}
+
+/* Emergency Safety Grid Bounding Blocks Accent Box */
+.vst-zone.alert-zone-border {
+    border: 2px solid #D1172B; /* Matches your Crimson Red KVM theme accent color */
+    background-color: #4E4244;
+}
+
+.vst-zone.alert-zone-border h3 {
+    color: #FF7379;
+}
+/* Telegraph Key Assembly Configurations */
+.telegraph-key-assembly {
+    background-color: #24292E;
+    border: 1px solid #1C2B36;
+    border-radius: 4px;
+    padding: 10px;
+    margin-top: 15px;
+    width: 100%;
+}
+
+.telegraph-workspace-grid {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+    margin-top: 8px;
+}
+
+/* Mechanical Lever Touch Targets Box Assembly Matching Fitts's Law Rules */
+.telegraph-lever-hitbox {
+    width: 80px;
+    height: 90px;
+    background-color: #1A1D20;
+    border-radius: 6px;
+    border: 2px solid #3F4448;
+    position: relative;
+    cursor: pointer;
+    box-shadow: inset 0px 4px 10px rgba(0,0,0,0.8);
+    display: flex;
+    justify-content: center;
+}
+
+.telegraph-arm-bar {
+    width: 12px;
+    height: 55px;
+    background: linear-gradient(to right, #7F8C8D, #BDC3C7, #95A5A6);
+    position: absolute;
+    top: 10px;
+    border-radius: 2px;
+    box-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+    transform-origin: top center;
+    transition: transform 0.05s ease;
+}
+
+.telegraph-finger-knob {
+    width: 32px;
+    height: 32px;
+    background: radial-gradient(circle, #34495E 0%, #2C3E50 80%, #1A252F 100%);
+    border-radius: 50%;
+    position: absolute;
+    bottom: 8px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.6);
+    border: 1px solid #1A252F;
+}
+
+/* Visually depress lever contact arms dynamically when touch points are closed */
+.telegraph-lever-hitbox.lever-contact-closed .telegraph-arm-bar {
+    transform: scaleY(0.96) translateY(2px);
+    filter: brightness(0.8);
+}
+.telegraph-lever-hitbox.lever-contact-closed .telegraph-finger-knob {
+    transform: translateY(2px);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.9);
+}
+
+/* Readouts Right Panel Deck Canvas Configurations */
+.telegraph-readout-deck {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.morse-symbol-track {
+    font-family: monospace;
+    font-size: 11px;
+    color: #FFD200; /* Stencil Amber tracking symbols characters */
+    background-color: #0F1113;
+    padding: 4px;
+    border-radius: 3px;
+    height: 18px;
+    letter-spacing: 2px;
+}
+
+.telegraph-string-output {
+    height: 32px;
+    background-color: #050A0E;
+    border: 1px solid #4AD2FF;
+    border-radius: 3px;
+    font-family: 'Courier New', monospace;
+    font-size: 16px;
+    color: #4AD2FF; /* High glow fluorescent matrix character display colors */
+    font-weight: bold;
+    padding: 0 8px;
+    outline: none;
+    text-transform: uppercase;
+    box-shadow: inset 0px 2px 5px rgba(0,0,0,0.9);
+}
+/* Analog Meter Layout Frames */
+.analog-meter-housing {
+    background-color: #1A1D20;
+    border: 2px solid #2F353A;
+    border-radius: 4px;
+    padding: 6px;
+    width: 100%;
+    max-width: 140px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    box-shadow: inset 0px 2px 5px rgba(0,0,0,0.5);
+}
+
+.meter-face-title {
+    font-size: 9px;
+    color: #A0A0A0;
+    font-weight: bold;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+    text-transform: uppercase;
+}
+
+.meter-casing {
+    width: 120px;
+    height: 70px;
+    background-color: #EBECE7; /* Vintage matte parchment yellow-white dial face */
+    border: 2px solid #0B0B0B;
+    border-radius: 3px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: inset 0px 4px 6px rgba(0,0,0,0.3);
+}
+
+.meter-scale-arc {
+    position: absolute;
+    width: 100px;
+    height: 100px;
+    border: 1.5px solid #222222;
+    border-radius: 50%;
+    top: 15px;
+    left: 10px;
+    clip-path: polygon(0 0, 100% 0, 100% 45%, 0 45%);
+}
+
+.meter-scale-ticks {
+    position: absolute;
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    padding: 0 16px;
+    top: 2px;
+    box-sizing: border-box;
+    font-family: monospace;
+    font-size: 8px;
+    color: #111111;
+    font-weight: bold;
+}
+
+/* Mechanical Needle Element Assemblage */
+.meter-needle-pivot {
+    position: absolute;
+    bottom: -10px;
+    left: 58px;
+    width: 4px;
+    height: 4px;
+    background-color: #111111;
+}
+
+.meter-needle-arm {
+    position: absolute;
+    bottom: 0;
+    left: 1px;
+    width: 1.5px;
+    height: 52px;
+    background-color: #D1172B; /* High-visibility safety-crimson structural indicator needle */
+    transform-origin: bottom center;
+    box-shadow: 1px 0px 2px rgba(0,0,0,0.2);
+}
+
+.meter-unit-tag {
+    position: absolute;
+    bottom: 4px;
+    width: 100%;
+    text-align: center;
+    font-family: sans-serif;
+    font-weight: bold;
+    font-size: 8px;
+    color: #555555;
+}
+
+/* Military Tactical Matte Olive Drab Chassis Design System */
+.vst-console-frame.olive-drab-chassis {
+    background-color: #4B5340; /* Authentic WWII Olive Drab Dull Paint Tone */
+    color: #EAE6DF;            /* Stencil Off-White text character overlays */
+    border: 4px solid #353B2E;
+    font-family: monospace;
+}
+
+.vst-console-header.line-olive {
+    border-bottom: 3px solid #2B3025;
+}
+
+.radio-rack-column.olive-well {
+    background-color: #3C4234; /* Recessed structural well sheet metal background tint */
+    border: 2px solid #2B3025;
+    padding: 12px;
+}
+
+.radio-rack-column.olive-well h2 {
+    color: #EAE6DF;
+    font-size: 11px;
+    letter-spacing: 1px;
+    border-bottom: 1px dashed #5F6952;
+    padding-bottom: 4px;
+    margin-bottom: 10px;
+}
+
+/* Hardened stamped metal framing borders for military component boxes */
+.vst-zone.military-border {
+    border: 1px solid #2B3025;
+    background-color: #424939;
+    padding: 10px;
+    margin-bottom: 15px;
+    border-radius: 2px;
+    box-shadow: inset 0 1px 3px rgba(255,255,255,0.1);
+}
+
+.vst-zone.military-border h3 {
+    color: #C0C8B6;
+    font-size: 9px;
+    letter-spacing: 0.5px;
+    margin-bottom: 10px;
+}
+
