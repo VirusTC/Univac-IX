@@ -184,3 +184,33 @@ carrier_telemetry:
       signaling_frequency_hz: 2600
       detection_bandwidth_hz: 30.0
       minimum_duration_ms: 150
+
+system:
+  identity: "UNIVAC-IX-SUPER-FABRIC"
+  operation_mode: "TOTAL_INFRASTRUCTURE_RECOVERY"
+
+sf_trunk_policing:
+  target_frequency_hz: 2600
+  power_magnitude_floor: 15.0
+  interceptor_nodes:
+    - address: "0x0013"
+      label: "TELEPHONY_TRUNK_01"
+      description: "Main in-band long-distance telecom network drop link"
+
+autonomous_plc_overrides:
+  DRIVER_TELEPHONY_SF:
+    trigger_condition: "DISCONNECTED_2600HZ_SF"
+    actions:
+      - vendor: "ALLEN_BRADLEY"
+        protocol: "EtherNet/IP"
+        cip_routing_path: "1,0"
+        target_register: "0x00A1"
+        override_hex_vector: "AA55FFFF0000"
+        label: "AB_FORCE_SAFETY_SHUTDOWN"
+        description: "Forcibly reset Allen-Bradley CIP core register loop profiles"
+      - vendor: "SIEMENS"
+        protocol: "PROFINET_STEP7"
+        target_register: "0x00B2"
+        override_hex_vector: "DEADBEEF0101"
+        label: "SIEMENS_BREAKER_TRIP"
+        description: "Isolate Siemens execution bus channels to eliminate field damage"
