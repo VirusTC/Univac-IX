@@ -1,6 +1,6 @@
 # File Name: archeo_astronomy_planet_engine.py
 # Location: /src/modules/
-# Subsystem: Planetary Rotation & Ancient Egyptian Alignment Matrix
+# Subsystem: Planetary Rotation & Ancient Egyptian Alignment Matrix UPDATED
 # Copyright (c) 2026 Revolutionary Technology
 
 import time
