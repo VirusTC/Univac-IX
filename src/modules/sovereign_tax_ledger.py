@@ -1,6 +1,6 @@
 # File Name: sovereign_tax_ledger.py
 # Location: /src/modules/
-# Subsystem: Global Sovereign Tax & Tariff Computation Matrix
+# Subsystem: Global Sovereign Tax & Tariff Computation Matrix UPDATED
 # Copyright (c) 2026 Revolutionary Technology
 
 import time
