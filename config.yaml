@@ -115,3 +115,23 @@ vendor_connectors:
   hbe:
     integration_mode: "OPC_UA_PROXY"
     heartbeat_timeout_ms: 500
+carrier_telemetry:
+  frequency_matrices:
+    - classification: "DTMF_DIAL_UP"
+      low_group_hz: [697, 770, 852, 941]
+      high_group_hz: [1209, 1336, 1477, 1633]
+      min_twist_db: -8.0
+      max_twist_db: 4.0
+    - classification: "TELEGRAPH_MORSE_TONE"
+      center_frequency_hz: 800
+      dit_length_ms: 60
+      dah_length_ms: 180
+      inter_element_gap_ms: 60
+
+database_dumps:
+  oracle:
+    schema_regex: "INSERT\\s+INTO\\s+([A-Za-z0-9_]+)\\s*\\(([^)]+)\\)\\s*VALUES\\s*\\(([^)]+)\\)"
+    encoding_fallback: "UTF-8"
+  ibm_db2:
+    schema_regex: "CREATE\\s+TABLE\\s+([A-Za-z0-9_]+)\\s*\\(([^;]+)\\)"
+    ebcdic_to_ascii_forced: true
