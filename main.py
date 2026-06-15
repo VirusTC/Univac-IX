@@ -2,12 +2,12 @@ import sys
 import os
 import time
 import socket
+import re
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 import yaml
 import typer
 
-# Conditional import for hardware serial infrastructure to prevent startup crashes on virtual-only environments
 try:
     import serial
 except ImportError:
@@ -41,7 +41,6 @@ def load_system_config(config_path: Path) -> Dict[str, Any]:
     raise typer.Exit(code=1)
 
 def process_incoming_stream(hex_address: str, raw_payload: bytes, config_data: Dict[str, Any]) -> None:
-    """Dispatches raw bytes collected from networks or serial feeds straight to internal module logic structures."""
     clean_addr = hex_address.strip().lower()
     hex_payload_str = raw_payload.hex().upper()
     
@@ -90,6 +89,57 @@ def route_signal_command(
     process_incoming_stream(hex_address, raw_data, config_data)
 
 
+@app.command(name="convert-log")
+def convert_log_command(
+    source_file: Path = typer.Argument(..., help="Path to the raw legacy text log file."),
+    output_hex_file: Optional[Path] = typer.Option(None, help="Target file path to output pure hex strings."),
+    inject_to_node: Optional[str] = typer.Option(None, help="Optional hex address node to immediately inject streams into.")
+):
+    """Converts legacy text logs into streamlined hexadecimal vectors according to specification rules."""
+    if not source_file.exists():
+        print(f"File Error: Source log file '{source_file}' does not exist.", file=sys.stderr)
+        raise typer.Exit(code=1)
+        
+    print(f"[CONVERTER] Parsing legacy log: {source_file}")
+    
+    with open(source_file, "r", encoding="utf-8", errors="ignore") as f:
+        log_lines = f.readlines()
+        
+    compiled_hex_output: List[str] = []
+    config_data = None
+    
+    if inject_to_node:
+        config_data = load_system_config(Path("config.yaml"))
+
+    for line in log_lines:
+        clean_line = line.strip()
+        if not clean_line:
+            continue # Bypass blank line entries
+            
+        # Optimization: Convert clean plaintext lines directly to programmatic upper hex arrays
+        hex_encoded_line = clean_line.encode("utf-8").hex().upper()
+        compiled_hex_output.append(hex_encoded_line)
+        
+        if not inject_to_node:
+            continue
+            
+        # Hot-inject translated stream values straight into running emulator matrix routes
+        raw_bytes = bytes.fromhex(hex_encoded_line)
+        process_incoming_stream(inject_to_node, raw_bytes, config_data)
+
+    # Compile the array back to a contiguous stream
+    final_output_string = "\n".join(compiled_hex_output)
+
+    if not output_hex_file:
+        print("[CONVERTER] Process complete. Raw Conversion Matrix stream output follows:")
+        print(final_output_string)
+        return
+
+    with open(output_hex_file, "w", encoding="utf-8") as out:
+        out.write(final_output_string + "\n")
+    print(f"[CONVERTER] High-speed hexadecimal payload matrix exported to: {output_hex_file}")
+
+
 @app.command(name="listen-ports")
 def listen_ports_command(
     config: Path = typer.Option(Path("config.yaml"), help="Path to the system topology file."),
@@ -100,17 +150,14 @@ def listen_ports_command(
     config_data = load_system_config(config)
     print(f"[IO DAEMON] Initializing communications interface matrix on Core Network Port: {network_port}")
     
-    # Configure and open TCP socket daemon interface
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server_socket.bind(("0.0.0.0", network_port))
     server_socket.listen(5)
-    server_socket.setblocking(False) # Prevent thread deadlock
+    server_socket.setblocking(False)
     
-    # Track opened hardware pipelines
     active_serial_handles: Dict[str, Any] = {}
     
-    # Locate all active node pathways claiming hardware connectivity mappings
     for node in config_data.get("nodes", []):
         port_path = node.get("port", "")
         if not port_path.startswith("/dev/"):
@@ -130,13 +177,11 @@ def listen_ports_command(
 
     try:
         while True:
-            # 1. Process TCP Network Sockets
             try:
                 client_sock, client_addr = server_socket.accept()
                 client_sock.settimeout(0.5)
                 raw_buffer = client_sock.recv(1024)
                 if raw_buffer:
-                    # Expecting standard framed formatting: "HEX_ADDRESS:PAYLOAD_HEX" (e.g. "0x00A1:4A6F6E6573")
                     payload_str = raw_buffer.decode('utf-8').strip()
                     if ":" in payload_str:
                         addr, data_hex = payload_str.split(":", 1)
@@ -144,20 +189,18 @@ def listen_ports_command(
                         process_incoming_stream(addr, converted_payload, config_data)
                 client_sock.close()
             except BlockingIOError:
-                pass # No incoming connections present on this step cycle
+                pass
             except Exception as ex:
                 pass
 
-            # 2. Process Physical Serial Hardware Inputs
             for hex_addr, serial_connection in active_serial_handles.items():
                 if not serial_connection.in_waiting:
                     continue
                 serial_raw = serial_connection.read(serial_connection.in_waiting)
                 if serial_raw:
-                    # Direct data byte injection mapped directly to its hardwired bus allocation
                     process_incoming_stream(hex_addr, serial_raw, config_data)
 
-            time.sleep(0.05) # Minimize execution frame load strains
+            time.sleep(0.05)
 
     except KeyboardInterrupt:
         print("\n[IO DAEMON] Unmounting hardware channels and closing network stack components safely.")
