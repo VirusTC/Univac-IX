@@ -1,0 +1,36 @@
+system:
+  identity: "UNIVAC-UNIVERSAL-EMULATOR-NODE-01"
+  default_word_size: 36
+
+nodes:
+  - id: "NODE_01"
+    name: "AN-UYK-7-Parallel-A"
+    type: "NTDS_PARALLEL"
+    port: "/dev/ttyUSB0"
+    hex_address: "0x00A1"
+    target_module: "aegis-bridge"
+    status: "ACTIVE"
+
+  - id: "NODE_02"
+    name: "AN-UYK-20-Serial"
+    type: "NTDS_SERIAL"
+    port: "/dev/ttyUSB1"
+    hex_address: "0x00B2"
+    target_module: "aviation-knowledge"
+    status: "ACTIVE"
+
+  - id: "NODE_03"
+    name: "Environment-Safety-Bus"
+    type: "MONITOR_BUS"
+    port: "VIRTUAL_PIPE_0"
+    hex_address: "0x00C3"
+    target_module: "safety-monitor"
+    status: "ACTIVE"
+
+  - id: "NODE_04"
+    name: "Otis-Gen360-Interface"
+    type: "IO_CHANNEL"
+    port: "/dev/ttyUSB2"
+    hex_address: "0x00D4"
+    target_module: "otis-gen360"
+    status: "STANDBY"
