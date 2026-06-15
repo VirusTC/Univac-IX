@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Sperry Univac KVM Console</title>
+    <link rel="stylesheet" href="assets/css/main.css">
+    <link rel="stylesheet" href="assets/css/tui-mode.css">
+    <link rel="stylesheet" href="assets/css/gui-mode.css">
+    <link rel="stylesheet" href="assets/css/panel-mode.css">
+</head>
+<body>
+    <!-- KVM Top-Bar Switcher (Touch-friendly size) -->
+    <!-- KVM Top-Bar Switcher (Touch-friendly size) -->
+<div class="machine-selector" style="display: flex; align-items: center; gap: 10px;">
+            <!-- NEW TRAINING AUTOMATION INTERACTIVES TRIGGER -->
+    <div id="training-program-status-flag" style="font-family: monospace; font-size: 9px; padding: 2px 6px; background-color: #222; color: #888; border-radius: 2px; font-weight: bold;">TRAINING INACTIVE - MANUAL KVM</div>
+    <button id="btn-trigger-auto-typer" class="winforms-btn" style="background: linear-gradient(to bottom, #FFF, #E4ECF7); font-weight: bold; height: 26px;">RUN AUTO-LEARN</button>
+            
+    <label for="machine-node">NODE:</label>
+    <select id="machine-node">
+
+    <header class="kvm-global-nav">
+        <!-- Inside the <header class="kvm-global-nav"> ... <div class="machine-selector"> block -->
+
+        <!-- Existing Training Button -->
+        <button id="btn-trigger-auto-typer" class="winforms-btn">RUN AUTO-LEARN</button>
+
+        <!-- NEW AI TYPER CONTROLS -->
+        <div style="border-left: 1px solid #444; height: 20px; margin: 0 10px;"></div> <!-- Separator -->
+        <div id="ai-status-flag" style="font-family: monospace; font-size: 9px; font-weight: bold; color: #888; margin-right: 5px;">AI OFFLINE</div>
+        <button id="btn-ai-autopilot" class="winforms-btn" style="font-weight: bold; height: 26px; min-width: 110px;">ENABLE AI TYPER</button>
+
+        <!-- THE BIG RED INPUT CYCLE BUTTON -->
+        <!-- Placed far left, matching standard control bar heights -->
+        <button id="kvm-big-red-cycle">NEXT</button>
+
+        <div class="sperry-brand">
+            <span>SPERRY UNIVAC</span>
+        </div>
+        <nav class="kvm-tabs">
+            <button class="touch-tab active" data-mode="TUI">1. SPERRY TUI</button>
+            <button class="touch-tab" data-mode="GUI">2. CONFIG GUI</button>
+            <button class="touch-tab" data-mode="PANEL">3. 1100/80 PANEL</button>
+        </nav>
+        <div class="machine-selector">
+            <label for="machine-node">NODE:</label>
+            <select id="machine-node">
+                <option value="node-01">UNIVAC_MAIN_01</option>
+                <option value="node-02">UNIVAC_BACK_02</option>
+            </select>
+        </div>
+    </header>
+
+
+    <!-- Unified KVM Viewport -->
+    <main id="kvm-viewport-root">
+        <!-- Viewport 1: Sperry UTS Block-Mode TUI -->
+        <section id="viewport-tui" class="kvm-screen-pane active">
+            <!-- Rendered 80x25 character matrix via JS -->
+            <div id="tui-matrix-container"></div>
+        </section>
+
+        <!-- Viewport 2: Sperry Software Blue/Orange Modern GUI -->
+        <section id="viewport-gui" class="kvm-screen-pane">
+            <div class="winforms-frame">
+                <div class="winforms-toolbar">Outlook Configuration Utilities</div>
+                <div class="winforms-body">
+                    <!-- Config fields, lists, buttons -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Viewport 3: Skeuomorphic VST Hardware Control Panel -->
+        <section id="viewport-panel" class="kvm-screen-pane">
+            <div class="console-chassis-1100">
+                <!-- Hardware groups render here -->
+            </div>
+                <!-- Hardware Simulation & Network Error Injection Test Bench Panel -->
+        <div id="kvm-simulation-bench">
+            <span class="bench-tag">TEST BENCH:</span>
+            <button class="bench-btn active" id="bench-stable">STABLE</button>
+            <button class="bench-btn" id="bench-unstable">DROP PACKETS</button>
+            <button class="bench-btn" id="bench-dead">DISCONNECT</button>
+        </div>
+
+        </section>
+    </main>
+
+    <script type="module" src="src/core/touch-engine.js"></script>
+    <script type="module" src="src/core/kvm-manager.js"></script>
+</body>
+</html>
