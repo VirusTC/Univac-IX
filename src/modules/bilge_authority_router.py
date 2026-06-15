@@ -1,6 +1,6 @@
 # File Name: bilge_authority_router.py
 # Location: /src/control_core/
-# Subsystem: Tri-State Bilge Control Authority Router & Multiplexer
+# Subsystem: Tri-State Bilge Control Authority Router & Multiplexer UPDATED
 # Copyright (c) 2026 Revolutionary Technology
 
 import time
