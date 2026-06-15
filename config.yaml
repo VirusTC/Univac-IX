@@ -2,6 +2,18 @@ system:
   identity: "UNIVAC-IX-CORE-FABRIC"
   default_word_size: 36
 
+gateway_configuration:
+  identity: "UNIVAC-IX-GATEWAY-CORE"
+  unisys_reserved_oui_prefixes:
+    - prefix: "00:00:A2"
+      classification: "SPERRY_UNIVAC_FUTURE_FRAME"
+    - prefix: "00:10:FA"
+      classification: "UNISYS_RESERVED_IOC_BLOCK"
+  dynamic_switching_matrix:
+    gateway_ip: "192.168.1.1"
+    subnet_mask: "255.255.255.0"
+    enforce_switch_mac_binding: true
+
 routing_matrix:
   source_node: "0x00FF" # Fiber Optic Trunk Line
   mirror_targets:
