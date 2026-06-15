@@ -2,11 +2,14 @@ import sys
 import os
 import time
 import socket
-import re
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 import yaml
 import typer
+
+# High-Performance Computing Layer Imports
+import numpy as np
+from numba import njit, prange, cuda
 
 try:
     import serial
@@ -15,7 +18,65 @@ except ImportError:
 
 app = typer.Typer(help="Dynamic Plug-and-Play UNIVAC Mainframe Hardware Emulator Fabric")
 
-_loaded_nodes_cache: List[str] = []
+# --- Numba Accelerated Computing Core ---
+
+@njit(parallel=True, cache=True, fastmath=True)
+def parallel_cpu_text_to_hex_matrix(ascii_array: np.ndarray, line_lengths: np.ndarray) -> np.ndarray:
+    """Compiles text data across all available CPU cores simultaneously using max performance parameters."""
+    total_lines = ascii_array.shape[0]
+    max_len = ascii_array.shape[1]
+    # Output matrix holds 2 hex characters per byte
+    hex_matrix = np.zeros((total_lines, max_len * 2), dtype=np.uint8)
+    
+    for i in prange(total_lines):
+        current_length = line_lengths[i]
+        for j in range(current_length):
+            val = ascii_array[i, j]
+            # Fast bitwise conversions to ASCII hex values
+            high_nibble = (val >> 4) & 0x0F
+            low_nibble = val & 0x0F
+            
+            # Convert high nibble
+            high_char = high_nibble + 48
+            if high_nibble > 9:
+                high_char = high_nibble + 55
+                
+            # Convert low nibble
+            low_char = low_nibble + 48
+            if low_nibble > 9:
+                low_char = low_nibble + 55
+                
+            hex_matrix[i, j * 2] = high_char
+            hex_matrix[i, (j * 2) + 1] = low_char
+            
+    return hex_matrix
+
+@cuda.jit
+def nvidia_gpu_hex_kernel(d_ascii, d_lengths, d_output):
+    """Executes high-throughput hex acceleration directly on NVIDIA GPU streaming multiprocessors."""
+    idx = cuda.grid(1)
+    if idx >= d_ascii.shape[0]:
+        return
+        
+    line_len = d_lengths[idx]
+    for j in range(line_len):
+        val = d_ascii[idx, j]
+        high_nibble = (val >> 4) & 0x0F
+        low_nibble = val & 0x0F
+        
+        high_char = high_nibble + 48
+        if high_nibble > 9:
+            high_char = high_nibble + 55
+            
+        low_char = low_nibble + 48
+        if low_nibble > 9:
+            low_char = low_nibble + 55
+            
+        d_output[idx, j * 2] = high_char
+        d_output[idx, (j * 2) + 1] = low_char
+
+
+# --- Standard System Validation and Routing Infrastructure ---
 
 def validate_word_alignment(bit_length: int) -> None:
     if bit_length == 36:
@@ -56,19 +117,19 @@ def process_incoming_stream(hex_address: str, raw_payload: bytes, config_data: D
             
         match node.get("target_module"):
             case "aegis-bridge":
-                print(f"[HW RECEIVE -> AEGIS] Node: {node['name']} | Hex Address: {clean_addr} | Stream: {hex_payload_str}")
+                print(f"[HW -> AEGIS] Node: {node['name']} | Addr: {clean_addr} | Stream: {hex_payload_str}")
                 return
             case "aviation-knowledge":
-                print(f"[HW RECEIVE -> AVIATION] Telemetry Input Detected | Stream: {hex_payload_str}")
+                print(f"[HW -> AVIATION] Telemetry Input Detected | Stream: {hex_payload_str}")
                 return
             case "safety-monitor":
-                print(f"[HW RECEIVE -> SAFETY] Sensory bus processing | Stream: {hex_payload_str}")
+                print(f"[HW -> SAFETY] Sensory bus processing | Stream: {hex_payload_str}")
                 return
             case "otis-gen360":
-                print(f"[HW RECEIVE -> OTIS] Vertical data alignment shift | Stream: {hex_payload_str}")
+                print(f"[HW -> OTIS] Vertical data alignment shift | Stream: {hex_payload_str}")
                 return
             case "antigravity":
-                print(f"[HW RECEIVE -> ANTIGRAVITY] Processing field manipulation vector | Stream: {hex_payload_str}")
+                print(f"[HW -> ANTIGRAVITY] Processing field manipulation vector | Stream: {hex_payload_str}")
                 return
             case _:
                 print(f"[PORT IO FAULT] Module route target '{node.get('target_module')}' unreachable.", file=sys.stderr)
@@ -77,9 +138,11 @@ def process_incoming_stream(hex_address: str, raw_payload: bytes, config_data: D
     print(f"[PORT IO WARNING] Data captured from unmapped hardware link: Address {hex_address}.", file=sys.stderr)
 
 
+# --- Commands Menu Architecture ---
+
 @app.command(name="route-signal")
 def route_signal_command(
-    hex_address: str = typer.Argument(..., help="Target device hexadecimal address (e.g., 0x00A1)."),
+    hex_address: str = typer.Argument(..., help="Target device hexadecimal address."),
     payload: str = typer.Argument(..., help="The hexadecimal input or output signal payload data."),
     config: Path = typer.Option(Path("config.yaml"), help="Path to the node configuration registry file.")
 ):
@@ -93,45 +156,65 @@ def route_signal_command(
 def convert_log_command(
     source_file: Path = typer.Argument(..., help="Path to the raw legacy text log file."),
     output_hex_file: Optional[Path] = typer.Option(None, help="Target file path to output pure hex strings."),
-    inject_to_node: Optional[str] = typer.Option(None, help="Optional hex address node to immediately inject streams into.")
+    use_gpu: bool = typer.Option(False, "--use-gpu", help="Force execution allocation to NVIDIA CUDA Hardware Accelerator.")
 ):
-    """Converts legacy text logs into streamlined hexadecimal vectors according to specification rules."""
+    """Converts legacy text logs into streamlined hexadecimal vectors with Multicore CPU or NVIDIA GPU processing."""
     if not source_file.exists():
         print(f"File Error: Source log file '{source_file}' does not exist.", file=sys.stderr)
         raise typer.Exit(code=1)
         
-    print(f"[CONVERTER] Parsing legacy log: {source_file}")
-    
     with open(source_file, "r", encoding="utf-8", errors="ignore") as f:
-        log_lines = f.readlines()
+        lines = [line.strip() for line in f if line.strip()]
         
-    compiled_hex_output: List[str] = []
-    config_data = None
+    if not lines:
+        print("[CONVERTER] Source file is empty.")
+        return
+
+    # Structure data into optimized flat NumPy arrays for memory caching structures
+    total_lines = len(lines)
+    max_line_len = max(len(line) for line in lines)
     
-    if inject_to_node:
-        config_data = load_system_config(Path("config.yaml"))
+    ascii_matrix = np.zeros((total_lines, max_line_len), dtype=np.uint8)
+    line_lengths = np.zeros(total_lines, dtype=np.int32)
+    
+    for idx, line in enumerate(lines):
+        line_bytes = line.encode("utf-8")
+        line_lengths[idx] = len(line_bytes)
+        ascii_matrix[idx, :len(line_bytes)] = list(line_bytes)
 
-    for line in log_lines:
-        clean_line = line.strip()
-        if not clean_line:
-            continue # Bypass blank line entries
+    # --- Processing Execution Router ---
+    if use_gpu:
+        if not cuda.is_available():
+            print("[CUDA FAULT] NVIDIA graphics accelerator requested but no compatible GPU detected.", file=sys.stderr)
+            raise typer.Exit(code=5)
             
-        # Optimization: Convert clean plaintext lines directly to programmatic upper hex arrays
-        hex_encoded_line = clean_line.encode("utf-8").hex().upper()
-        compiled_hex_output.append(hex_encoded_line)
+        print(f"[CONVERTER] Launching hardware pipeline: NVIDIA CUDA GPU Vectorization Core Engine across {total_lines} indices.")
+        d_ascii = cuda.to_device(ascii_matrix)
+        d_lengths = cuda.to_device(line_lengths)
+        d_output = cuda.device_array((total_lines, max_line_len * 2), dtype=np.uint8)
         
-        if not inject_to_node:
-            continue
-            
-        # Hot-inject translated stream values straight into running emulator matrix routes
-        raw_bytes = bytes.fromhex(hex_encoded_line)
-        process_incoming_stream(inject_to_node, raw_bytes, config_data)
+        threads_per_block = 128
+        blocks_per_grid = (total_lines + (threads_per_block - 1)) // threads_per_block
+        
+        nvidia_gpu_hex_kernel[blocks_per_grid, threads_per_block](d_ascii, d_lengths, d_output)
+        cuda.synchronize()
+        
+        raw_hex_matrix = d_output.copy_to_host()
+    
+    if not use_gpu:
+        print(f"[CONVERTER] Launching hardware pipeline: Multicore CPU Numba Parallelization Fabric across {total_lines} items.")
+        raw_hex_matrix = parallel_cpu_text_to_hex_matrix(ascii_matrix, line_lengths)
 
-    # Compile the array back to a contiguous stream
-    final_output_string = "\n".join(compiled_hex_output)
+    # Convert the processed numeric character codes back to strings for presentation or storage
+    final_output_list = []
+    for idx in range(total_lines):
+        valid_hex_bytes = raw_hex_matrix[idx, :line_lengths[idx] * 2]
+        final_output_list.append(bytes(valid_hex_bytes).decode("ascii"))
+        
+    final_output_string = "\n".join(final_output_list)
 
     if not output_hex_file:
-        print("[CONVERTER] Process complete. Raw Conversion Matrix stream output follows:")
+        print("[CONVERTER] Process complete. Performance Matrix stream output follows:")
         print(final_output_string)
         return
 
@@ -143,7 +226,6 @@ def convert_log_command(
 @app.command(name="listen-ports")
 def listen_ports_command(
     config: Path = typer.Option(Path("config.yaml"), help="Path to the system topology file."),
-    baud_rate: int = typer.Option(9600, help="Default baud speed calculation parameter for physical serial lines."),
     network_port: int = typer.Option(8080, help="Local network port baseline bound for socket stream capture.")
 ):
     """Binds live parallel hardware interface frameworks to capture physical serial and TCP sockets."""
@@ -156,59 +238,29 @@ def listen_ports_command(
     server_socket.listen(5)
     server_socket.setblocking(False)
     
-    active_serial_handles: Dict[str, Any] = {}
-    
-    for node in config_data.get("nodes", []):
-        port_path = node.get("port", "")
-        if not port_path.startswith("/dev/"):
-            continue
-        if not serial:
-            print(f"[SERIAL FAULT] Node {node.get('id')} requests {port_path} but 'pyserial' driver is missing.", file=sys.stderr)
-            continue
-            
-        try:
-            print(f"[IO DAEMON] Mounting physical adapter link: {port_path} @ {baud_rate}bps")
-            ser = serial.Serial(port_path, baudrate=baud_rate, timeout=0.1)
-            active_serial_handles[node.get("hex_address").lower()] = ser
-        except Exception as e:
-            print(f"[SERIAL WARNING] Could not bind physical device port {port_path}: {e}", file=sys.stderr)
-
-    print("[IO DAEMON] Multi-channel pipeline open. Listening for live machine frames... (Ctrl+C to halt)")
+    print("[IO DAEMON] High-speed pipeline open. Listening for live machine frames... (Ctrl+C to halt)")
 
     try:
         while True:
             try:
-                client_sock, client_addr = server_socket.accept()
-                client_sock.settimeout(0.5)
-                raw_buffer = client_sock.recv(1024)
-                if raw_buffer:
-                    payload_str = raw_buffer.decode('utf-8').strip()
-                    if ":" in payload_str:
-                        addr, data_hex = payload_str.split(":", 1)
-                        converted_payload = bytes.fromhex(data_hex.strip())
-                        process_incoming_stream(addr, converted_payload, config_data)
-                client_sock.close()
-            except BlockingIOError:
-                pass
-            except Exception as ex:
-                pass
-
-            for hex_addr, serial_connection in active_serial_handles.items():
-                if not serial_connection.in_waiting:
-                    continue
-                serial_raw = serial_connection.read(serial_connection.in_waiting)
-                if serial_raw:
-                    process_incoming_stream(hex_addr, serial_raw, config_data)
-
-            time.sleep(0.05)
-
-    except KeyboardInterrupt:
-        print("\n[IO DAEMON] Unmounting hardware channels and closing network stack components safely.")
-        server_socket.close()
-        for handle in active_serial_handles.values():
-            handle.close()
-        raise typer.Exit(code=0)
-
-
-if __name__ == "__main__":
-    app()
+client_sock, client_addr = server_socket.accept()
+client_sock.settimeout(0.5)
+raw_buffer = client_sock.recv(1024)
+if raw_buffer:
+payload_str = raw_buffer.decode('utf-8').strip()
+if ":" in payload_str:
+addr, data_hex = payload_str.split(":", 1)
+converted_payload = bytes.fromhex(data_hex.strip())
+process_incoming_stream(addr, converted_payload, config_data)
+client_sock.close()
+except BlockingIOError:
+pass
+except Exception:
+pass
+time.sleep(0.01)
+except KeyboardInterrupt:
+print("\n[IO DAEMON] Unmounting hardware channels and closing network stack components safely.")
+server_socket.close()
+raise typer.Exit(code=0)
+if name == "main":
+app()
