@@ -1,6 +1,7 @@
 import sys
 import os
 import time
+import socket
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 import yaml
@@ -14,9 +15,9 @@ try:
 except ImportError:
     serial = None
 
-app = typer.Typer(help="UNIVAC-IX Tactical Dual-Way Radio Mesh, Live Boundary Guard & Telemetry Alert Fabric")
+app = typer.Typer(help="UNIVAC-IX Network-Enabled Tactical Dual-Way Radio Mesh & Safety Core Fabric")
 
-# Global handle storage for open physical radio transmitter lines
+# Global handle storage for open hardware interface ports
 _active_serial_handles: Dict[str, Any] = {}
 
 # Global register files mapping threshold boundaries read from documents
@@ -79,38 +80,29 @@ def inline_multicore_hex_decode(raw_hex_string: str) -> str:
     return bytes(raw_text_matrix[0, :hex_len // 2]).decode("utf-8", errors="ignore")
 
 
-# --- Automated Over-The-Air Radio Alert Broadcasting Engine ---
+# --- Automated Radio Messaging & Compliance Guard Layers ---
 
 def dispatch_emergency_radio_broadcast(hex_address: str, violation_type: str, threshold_val: int, current_val: int) -> None:
-    """Formats a compact emergency message and transmits it over long-range radio hardware on Port 20."""
-    radio_tx_addr = "0x0014" # Hardcoded route parameter matching PORT_20 RADIO_TRANS_TX allocation
-    
+    radio_tx_addr = "0x0014"
     if radio_tx_addr not in _active_serial_handles:
-        print(f"  [RADIO MESH DEFERRED] Cannot broadcast alert. Radio line {radio_tx_addr} is currently offline.", file=sys.stderr)
+        print(f"  [RADIO MESH DEFERRED] Cannot broadcast alert. Radio transceiver line {radio_tx_addr} offline.", file=sys.stderr)
         return
 
     timestamp = time.strftime("%H:%M:%S")
-    # Compact, parsing-friendly text structure for emergency field paging hardware or satellite modems
-    radio_message = f"[UNIVAC-BREACH] {timestamp} | CH:{hex_address} | TYPE:{violation_type} | LIMIT:{threshold_val} | VAL:{current_val} // EVAC_ERR"
+    radio_message = f"[UNIVAC-NET-BREACH] {timestamp} | CH:{hex_address} | TYPE:{violation_type} | LIMIT:{threshold_val} | VAL:{current_val} // EVAC_ERR"
     
-    # Fast encoding conversion to binary byte vector matrices
     hex_payload = radio_message.encode("utf-8").hex().upper()
     raw_packet_bytes = bytes.fromhex(hex_payload)
     
     try:
         _active_serial_handles[radio_tx_addr].write(raw_packet_bytes)
-        print(f"  [RADIO MESH BROADCAST] Emergency warning dispatched across wireless network drops.")
+        print(f"  [RADIO MESH BROADCAST] Emergency net warning dispatched over wireless channels.")
         print(f"    -> Message Payload: {radio_message}")
     except Exception as tx_err:
         print(f"  [RADIO MESH FAULT] Signal drop on physical radio transmission array: {tx_err}", file=sys.stderr)
 
-
-# --- Automated Real-time Boundary Guard Interceptor ---
-
 def verify_live_sensor_safety_compliance(hex_address: str, raw_payload_bytes: bytes) -> None:
-    """Evaluates numerical sensor inputs against compliance guidelines and triggers autonomous radio alerts on breaches."""
     clean_addr = hex_address.strip().lower()
-    
     if clean_addr not in _safety_threshold_registers:
         return
     if len(raw_payload_bytes) == 0:
@@ -122,31 +114,27 @@ def verify_live_sensor_safety_compliance(hex_address: str, raw_payload_bytes: by
     max_boundary = bounds.get("upper_limit", 255)
     min_boundary = bounds.get("lower_limit", 0)
     
-    # 1. Process Upper Limit Violation
+    # 1. Process Upper Limit Network Breach
     if measured_integer_value > max_boundary:
         sys.stdout.write("\a\a\a")
         sys.stdout.flush()
         print("\n" + "!" * 80)
-        print(f" !!! CRITICAL HARDWARE COMPLIANCE BREACH: UPPER SAFETY BOUNDS EXCEEDED !!!")
-        print(f" -> SENSOR ROUTE CHANNEL: {clean_addr} | Real-Time Live Read: {measured_integer_value} (MAX: {max_boundary})")
+        print(f" !!! CRITICAL NETWORK PACKET COMPLIANCE BREACH: UPPER SAFETY BOUNDS EXCEEDED !!!")
+        print(f" -> INCOMING ROUTE CHANNEL: {clean_addr} | Real-Time Net Read: {measured_integer_value} (MAX: {max_boundary})")
         print("!" * 80)
-        
-        # Deploy immediate autonomic over-the-air radio warning message
-        dispatch_emergency_radio_broadcast(clean_addr, "MAX_EXCEEDED", max_boundary, measured_integer_value)
+        dispatch_emergency_radio_broadcast(clean_addr, "NET_MAX_EXCEEDED", max_boundary, measured_integer_value)
         print()
         return
         
-    # 2. Process Lower Limit Violation
+    # 2. Process Lower Limit Network Breach
     if measured_integer_value < min_boundary:
         sys.stdout.write("\a\a\a")
         sys.stdout.flush()
         print("\n" + "!" * 80)
-        print(f" !!! CRITICAL HARDWARE COMPLIANCE BREACH: LOWER SAFETY BOUNDS EXCEEDED !!!")
-        print(f" -> SENSOR ROUTE CHANNEL: {clean_addr} | Real-Time Live Read: {measured_integer_value} (MIN: {min_boundary})")
+        print(f" !!! CRITICAL NETWORK PACKET COMPLIANCE BREACH: LOWER SAFETY BOUNDS EXCEEDED !!!")
+        print(f" -> INCOMING ROUTE CHANNEL: {clean_addr} | Real-Time Net Read: {measured_integer_value} (MIN: {min_boundary})")
         print("!" * 80)
-        
-        # Deploy immediate autonomic over-the-air radio warning message
-        dispatch_emergency_radio_broadcast(clean_addr, "MIN_EXCEEDED", min_boundary, measured_integer_value)
+        dispatch_emergency_radio_broadcast(clean_addr, "NET_MIN_EXCEEDED", min_boundary, measured_integer_value)
         print()
         return
 
@@ -157,12 +145,14 @@ def process_incoming_stream(hex_address: str, raw_payload: bytes, config_data: D
     clean_addr = hex_address.strip().lower()
     hex_payload_str = raw_payload.hex().upper()
     
+    # Execute real-time guard calculations on data streams hitting network or serial lines
     verify_live_sensor_safety_compliance(clean_addr, raw_payload)
+    
     decoded_readable_text = inline_multicore_hex_decode(hex_payload_str)
     print(f"  [CORE PROCESSING] Address: {clean_addr} | Stream: {hex_payload_str} | Ascii: {decoded_readable_text}")
 
 
-# --- Daemon Engine Baseline Configuration Commands ---
+# --- Daemon Engine Multi-Channel Listener ---
 
 def load_system_config(config_path: Path) -> Dict[str, Any]:
     if config_path.exists():
@@ -171,26 +161,83 @@ def load_system_config(config_path: Path) -> Dict[str, Any]:
     print(f"Configuration Fault: Path {config_path} not found.", file=sys.stderr)
     raise typer.Exit(code=1)
 
-@app.command(name="route-signal")
-def route_signal_command(
-    hex_address: str = typer.Argument(..., help="Target device hexadecimal address."),
-    payload: str = typer.Argument(..., help="The hexadecimal input or output signal payload data."),
-    config: Path = typer.Option(Path("config.yaml"), help="Path to the node configuration registry file."),
-    visio_csv: Path = typer.Option(Path("visio_mapping.csv"), help="The target data visualizer spreadsheet to write audits to.")
+@app.command(name="listen-ports")
+def listen_ports_command(
+    config: Path = typer.Option(Path("config.yaml"), help="Path to the system topology file."),
+    visio_csv: Path = typer.Option(Path("visio_mapping.csv"), help="The target data visualizer spreadsheet to write audits to."),
+    network_port: int = typer.Option(8080, help="Network port simulating aggregate fiber optic lines.")
 ):
-    """Manually routes an input frame payload to verify compliance and radio alerting capabilities."""
+    """Launches the master receiver engine, automatically policing incoming socket streams for safety compliance."""
     global _active_serial_handles
     config_data = load_system_config(config)
+    print(f"\n======================================================================")
+    print(f"NETWORK-GUARDED TACOPS FABRIC LIVE: {config_data.get('system', {}).get('identity', 'UNIVAC-CORE')}")
+    print(f"======================================================================")
+    inline_multicore_hex_decode("414243") # Warm up cache arrays
     
-    # Stub: Mount a virtual dummy handle to represent the physical radio hardware interface for testing if missing
+    # Stub: Mount a virtual dummy handle to represent physical radio transmitter hardware for testing if missing
     if "0x0014" not in _active_serial_handles:
         class DummySerial:
             def write(self, data): pass
         _active_serial_handles["0x0014"] = DummySerial()
-        
-    raw_data = bytes.fromhex(payload.strip().upper())
-    process_incoming_stream(hex_address, raw_data, config_data, visio_csv)
 
+    # Configure non-blocking high-speed virtual fiber socket daemon
+    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    server_socket.bind(("0.0.0.0", network_port))
+    server_socket.listen(10)
+    server_socket.setblocking(False)
+    
+    # Mount serial hardware adapters
+    for node in config_data.get("nodes", []):
+        port_path = node.get("port", "")
+        if not port_path.startswith("/dev/"):
+            continue
+        if not serial:
+            continue
+        try:
+            ser = serial.Serial(port_path, baudrate=115200, timeout=0.01)
+            _active_serial_handles[node.get("hex_address").lower()] = ser
+        except Exception:
+            pass
 
-if __name__ == "__main__":
-    app()
+    print(f"[LIVE MONITOR] Scanning infrastructure channels. Socket engine running on network port {network_port}.\n")
+
+    try:
+        while True:
+            # 1. Process Virtual Fiber Network Socket Inputs
+            try:
+                client_sock, _ = server_socket.accept()
+                client_sock.settimeout(0.1)
+                raw_buffer = client_sock.recv(4096)
+                if raw_buffer:
+                    payload_str = raw_buffer.decode('utf-8').strip()
+                    if ":" in payload_str:
+                        addr, data_hex = payload_str.split(":", 1)
+                        # Extract the target channel address and translate the hex string package to bytes
+                        target_channel = addr.strip().lower()
+                        converted_bytes = bytes.fromhex(data_hex.strip())
+                        process_incoming_stream(target_channel, converted_bytes, config_data, visio_csv)
+                client_sock.close()
+            except BlockingIOError:
+                pass
+            except Exception:
+                pass
+
+            # 2. Process Physical Serial Port Inputs
+            for hex_addr, serial_conn in list(_active_serial_handles.items()):
+                if hex_addr == "0x0014":
+                    continue # Bypass radio transmitter feedback write loops
+                if not serial_conn.in_waiting:
+                    continue
+                raw_bytes = serial_conn.read(serial_conn.in_waiting)
+                if raw_bytes:
+                    process_incoming_stream(hex_addr, raw_bytes, config_data, visio_csv)
+
+            time.sleep(0.005)
+            except KeyboardInterrupt:
+print("\n[SHUTDOWN] Exiting tactical diagnostic network daemon safely.")
+server_socket.close()
+raise typer.Exit(code=0)
+if name == "main":
+app()
