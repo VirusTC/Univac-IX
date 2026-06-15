@@ -995,5 +995,65 @@ def scan_recovered_data_command(
     else:
         print(f"\n[INJECTION COMPLETE] Successfully parsed file and synchronized data matrices.")
 
+# ------------------------------------------------------------------------------
+# ATOMIC DATABASE & CHEMISTRY PARSING ENGINE
+# ------------------------------------------------------------------------------
+@app.command(name="query-chemistry")
+def query_chemistry_command(
+    target: str = typer.Argument(..., help="The Element Symbol (e.g., 'U', 'Fe', 'Au') or Atomic Number to query."),
+    ptable_json: Path = typer.Option(Path("src/data/master_ptable.json"), help="Path to the JSON periodic table matrix.")
+):
+    """Accesses the Univac-IX localized atomic database for real-time stoichiometric and elemental parameters."""
+    print(f"\n======================================================================")
+    print(f"UNIVAC-IX ATOMIC RESOLUTION & MOLECULAR KINEMATICS CORE")
+    print(f"======================================================================")
+    
+    if not ptable_json.exists():
+        print(f"[ATOMIC FAULT] Localized chemistry database not found at '{ptable_json}'", file=sys.stderr)
+        print(" -> Action: Ensure your JSON file is uploaded to the /src/data/ directory.")
+        raise typer.Exit(code=1)
+
+    # 1. Load the localized atomic JSON matrix into active memory
+    try:
+        with open(ptable_json, "r", encoding="utf-8") as f:
+            ptable_data = json.load(f)
+    except Exception as e:
+        print(f"[ATOMIC FAULT] Database corruption detected: {e}", file=sys.stderr)
+        raise typer.Exit(code=2)
+
+    # Note: Adjust the 'elements' key below based on the exact root structure of your JSON
+    elements_array = ptable_data.get("elements", []) if isinstance(ptable_data, dict) else ptable_data
+    
+    # 2. Sweep the memory matrix for the requested element (by Symbol or Atomic Number)
+    found_element = None
+    target_clean = target.strip()
+    
+    for element in elements_array:
+        # Check against Symbol (e.g., 'Au') or Atomic Number (Z)
+        if str(element.get("symbol", "")).upper() == target_clean.upper() or str(element.get("number", "")) == target_clean:
+            found_element = element
+            break
+
+    if not found_element:
+        print(f"[RECON FAILED] Target '{target}' does not match any known elemental signatures in the current matrix.\n")
+        raise typer.Exit(code=0)
+
+    # 3. Output the deterministic physical parameters
+    name = found_element.get("name", "UNKNOWN")
+    symbol = found_element.get("symbol", "??")
+    atomic_number = found_element.get("number", found_element.get("Z", "N/A"))
+    mass = found_element.get("atomic_mass", found_element.get("mass", "N/A"))
+    density = found_element.get("density", "N/A")
+    category = found_element.get("category", "N/A")
+
+    print(f"  -> Target Acquired:     {name.upper()} ({symbol})")
+    print(f"  -> Atomic Number (Z):   {atomic_number}")
+    print(f"  -> Absolute Mass (u):   {mass} amu")
+    print(f"  -> Phase / Category:    {str(category).upper()}")
+    if density != "N/A":
+        print(f"  -> Standard Density:    {density} g/cm³")
+    
+    print("\n[SUCCESS] Atomic parameters successfully pulled from static memory allocation.\n")
+    
 if __name__ == "__main__":
     app()
