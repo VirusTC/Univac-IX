@@ -23,14 +23,19 @@ try:
 except ImportError:
     serial = None
 
-app = typer.Typer(help="UNIVAC-IX Sovereignty Mainframe OS, Bidirectional Radio Mesh, Data Recovery, SLA Accounting & Kommandogerat-58 Physics Engineering Core")
+app = typer.Typer(help="UNIVAC-IX Sovereignty Mainframe OS, Radio Mesh, Data Recovery, SLA Accounting & Kommandogerat-58 Physics Engineering Core")
 
 # ------------------------------------------------------------------------------
 # GLOBAL STATE & SLA REGISTERS
 # ------------------------------------------------------------------------------
 _active_serial_handles: Dict[str, Any] = {}
-_cached_fingerprints: Dict[str, str] = {}
 _last_client_socket: Optional[socket.socket] = None
+
+_cached_fingerprints: Dict[str, str] = {
+    "0x0013": "DRIVER_AVIATION_KNOWLEDGE",
+    "0x0014": "DRIVER_AVIATION_KNOWLEDGE",
+    "0x0058": "DRIVER_KG58_PHYSICS"
+}
 
 _safety_threshold_registers: Dict[str, Dict[str, int]] = {
     "0x0037": {"upper_limit": 200, "lower_limit": 10},
@@ -95,58 +100,67 @@ def inline_multicore_hex_decode(raw_hex_string: str) -> str:
 # ------------------------------------------------------------------------------
 @njit(cache=True, fastmath=True)
 def calculate_single_piston_load(pressure_pascal: float, bore_diameter_meters: float, rod_diameter_meters: float, force_direction_is_extension: int) -> float:
-    """Computes the exact output force in Newtons exerted by a hydraulic or pneumatic piston barrel."""
     area_bore = (math.pi * (bore_diameter_meters ** 2)) / 4.0
-    
     if force_direction_is_extension == 1:
         return pressure_pascal * area_bore
-        
     area_rod = (math.pi * (rod_diameter_meters ** 2)) / 4.0
     area_retraction = area_bore - area_rod
     return pressure_pascal * area_retraction
 
 @njit(parallel=True, cache=True, fastmath=True)
 def parallel_cpu_compute_actuator_stresses(pressures: np.ndarray, bores: np.ndarray, rods: np.ndarray, directions: np.ndarray) -> np.ndarray:
-    """Processes massive arrays of concurrent actuator load configurations across all available CPU threads."""
     total_elements = pressures.shape[0]
     calculated_forces_newtons = np.zeros(total_elements, dtype=np.float64)
-    
     for i in prange(total_elements):
         calculated_forces_newtons[i] = calculate_single_piston_load(pressures[i], bores[i], rods[i], directions[i])
-        
     return calculated_forces_newtons
 
 @njit(cache=True, fastmath=True)
 def evaluate_rotational_torque_nm(force_newtons: float, arm_length_meters: float, force_angle_degrees: float) -> float:
-    """Calculates effective torsional moment vector force applied on dynamic gear linkages or rotary joints."""
     angle_radians = (force_angle_degrees * math.pi) / 180.0
     return force_newtons * arm_length_meters * math.sin(angle_radians)
 
 @njit(parallel=True, cache=True, fastmath=True)
 def parallel_cpu_verify_mass_balance(masses: np.ndarray, radii: np.ndarray, angles_deg: np.ndarray) -> np.ndarray:
-    """Resolves net static and dynamic multi-axis imbalances to ensure high-speed mechanical structural alignment."""
     total_mass_nodes = masses.shape[0]
-    forces_vector = np.zeros(2, dtype=np.float64) # Index 0 = X Force component, Index 1 = Y Force component
-    
-    sum_x = 0.0
-    sum_y = 0.0
-    
+    forces_vector = np.zeros(2, dtype=np.float64) 
+    sum_x, sum_y = 0.0, 0.0
     for i in prange(total_mass_nodes):
         rad = (angles_deg[i] * math.pi) / 180.0
         centrifugal_factor = masses[i] * radii[i]
         sum_x += centrifugal_factor * math.cos(rad)
         sum_y += centrifugal_factor * math.sin(rad)
-        
     forces_vector[0] = sum_x
     forces_vector[1] = sum_y
     return forces_vector
 
+@njit(cache=True, fastmath=True)
+def evaluate_plane_adjusted_torque(force_newtons: float, arm_length_meters: float, force_angle_degrees: float, orientation_plane_angle_degrees: float) -> float:
+    """Computes torsional moments adjusted dynamically for flat vs horizontal mounting plane gravity shifts."""
+    angle_rad = (force_angle_degrees * math.pi) / 180.0
+    base_torque = force_newtons * arm_length_meters * math.sin(angle_rad)
+    
+    plane_rad = (orientation_plane_angle_degrees * math.pi) / 180.0
+    gravity_friction_coefficient = 1.0 - (0.15 * math.sin(plane_rad))
+    
+    return base_torque * gravity_friction_coefficient
+
+@njit(parallel=True, cache=True, fastmath=True)
+def parallel_cpu_compute_servo_matrix(forces: np.ndarray, arms: np.ndarray, force_angles: np.ndarray, plane_angles: np.ndarray) -> np.ndarray:
+    """Vectorizes multi-axis servo angle physics updates across all available host CPU execution threads simultaneously."""
+    total_elements = forces.shape[0] # FIX: Applied shape[0] correction for Numba indexing
+    adjusted_torques_nm = np.zeros(total_elements, dtype=np.float64)
+    
+    for i in prange(total_elements):
+        adjusted_torques_nm[i] = evaluate_plane_adjusted_torque(forces[i], arms[i], force_angles[i], plane_angles[i])
+        
+    return adjusted_torques_nm
+
 # ------------------------------------------------------------------------------
-# DATA RECOVERY LOGGERS, VISIO AUDITING & RADIO MESH
+# DATA RECOVERY LOGGERS, VISIO AUDITING, & KVM INJECTION
 # ------------------------------------------------------------------------------
 def log_intelligence_hit_to_visio(pattern_type: str, exact_match: str, line_number: int, target_csv: Path) -> None:
-    if not target_csv.exists():
-        return
+    if not target_csv.exists(): return
     epoch_stamp = int(time.time())
     node_id = f"INTEL_HIT_{epoch_stamp}_{line_number}"
     timestamp = time.strftime("%H:%M:%S")
@@ -156,50 +170,78 @@ def log_intelligence_hit_to_visio(pattern_type: str, exact_match: str, line_numb
     try:
         with open(target_csv, "a", encoding="utf-8") as ledger:
             ledger.write(log_line)
-    except Exception:
-        pass
+    except Exception: pass
 
 def broadcast_intel_over_radio(pattern_type: str, exact_match: str) -> None:
     radio_tx_addr = "0x0014"
-    if radio_tx_addr not in _active_serial_handles:
-        return
+    if radio_tx_addr not in _active_serial_handles: return
     timestamp = time.strftime("%H:%M:%S")
     radio_msg = f"[UNIVAC-INTEL] {timestamp} | MATCH:{pattern_type} | ADDR:{exact_match[:12]}... // SECURE_RELAY"
     hex_payload = radio_msg.encode("utf-8").hex().upper()
-    raw_packet_bytes = bytes.fromhex(hex_payload)
     try:
-        _active_serial_handles[radio_tx_addr].write(raw_packet_bytes)
-    except Exception:
-        pass
+        _active_serial_handles[radio_tx_addr].write(bytes.fromhex(hex_payload))
+    except Exception: pass
 
 def append_mechanical_audit_to_visio(actuator_index: int, force_newtons: float, max_safe_kn: float, target_csv: Path) -> None:
-    """Appends live real-time KG-58 mechanical load vectors directly to Visio Data Visualizer sheet tables."""
-    if not target_csv.exists():
-        return
-        
+    if not target_csv.exists(): return
     epoch_stamp = int(time.time())
     node_id = f"KG58_ACTUATOR_{epoch_stamp}_{actuator_index}"
     timestamp = time.strftime("%H:%M:%S")
-    
     force_kn = force_newtons / 1000.0
     node_name = f"Actuator_Load_{actuator_index}_{timestamp}"
     node_desc = f"KG-58 Actuator Index {actuator_index} measured at {force_kn:.2f} kN output thrust force"
     
-    severity = "OPERATIONAL"
-    color_code = "Green"
-    violation_text = "NONE"
-    
+    severity, color_code, violation_text = "OPERATIONAL", "Green", "NONE"
     if force_kn > max_safe_kn:
-        severity = "MECHANICAL_CRITICAL_OVERLOAD"
-        color_code = "DarkRed"
+        severity, color_code = "MECHANICAL_CRITICAL_OVERLOAD", "DarkRed"
         violation_text = f"LOAD_BREACH_CRITICAL (PEAK:{force_kn:.1f}kN LIMIT:{max_safe_kn:.1f}kN)"
         
     log_line = f'{node_id},{node_name},"{node_desc}",,,KG58_ENGINE,HYDRAULIC_PISTON,0x0058,DRIVER_KG58_PHYSICS,PASSIVE_LISTEN_ONLY,{severity},{color_code},"{violation_text}"\n'
-    
     try:
         with open(target_csv, "a", encoding="utf-8") as ledger:
             ledger.write(log_line)
         print(f"  -> [VISIO STITCH SUCCESS] Appended telemetry row {node_id} directly to file matrix database.")
+    except Exception: pass
+
+def inject_servo_metrics_to_kvm_config(device_id: int, plane_angle: float, adjusted_torque: float, kvm_gui_config: Path) -> None:
+    """Hot-injects calculated physical servo angles and plane friction adjustments directly into KVM JSON state views."""
+    current_gui_state: Dict[str, Any] = {}
+    if kvm_gui_config.exists():
+        try:
+            with open(kvm_gui_config, "r", encoding="utf-8") as stream:
+                current_gui_state = json.load(stream)
+        except Exception:
+            pass
+            
+    if "live_dashboard_vars" not in current_gui_state:
+        current_gui_state["live_dashboard_vars"] = {}
+
+    plane_label = "FLAT_PLANETARY"
+    if plane_angle >= 45.0:
+        plane_label = "HORIZONTAL_EDGE"
+
+    key_plane = f"SERVO_{device_id}_ORIENTATION_ANGLE"
+    key_torque = f"SERVO_{device_id}_COMPENSATED_TORQUE"
+    timestamp_str = time.strftime("%Y-%m-%d %H:%M:%S")
+
+    current_gui_state["live_dashboard_vars"][key_plane] = {
+        "value": f"{plane_angle:.1f}° ({plane_label})",
+        "source": "KG58_ORIENTATION_SENSOR",
+        "last_synchronized": timestamp_str,
+        "display_status": "RENDER_ACTIVE"
+    }
+
+    current_gui_state["live_dashboard_vars"][key_torque] = {
+        "value": f"{adjusted_torque:.2f} N·m",
+        "source": "KG58_KINEMATICS_COMPUTATION_ENGINE",
+        "last_synchronized": timestamp_str,
+        "display_status": "RENDER_ACTIVE"
+    }
+
+    try:
+        with open(kvm_gui_config, "w", encoding="utf-8") as target_out:
+            json.dump(current_gui_state, target_out, indent=2, ensure_ascii=False)
+        print(f"  -> [KVM INTERFACE SYNC] Synced device {device_id} metrics: Angle={plane_angle:.1f}° ({plane_label}) | Torque={adjusted_torque:.2f} N·m")
     except Exception:
         pass
 
@@ -245,9 +287,8 @@ def dispatch_emergency_radio_broadcast(hex_address: str, violation_type: str, th
     timestamp = time.strftime("%H:%M:%S")
     radio_message = f"[UNIVAC-BREACH] {timestamp} | CH:{hex_address} | TYPE:{violation_type} | LIMIT:{threshold_val} | VAL:{current_val} // EVAC_ERR"
     hex_payload = radio_message.encode("utf-8").hex().upper()
-    raw_packet_bytes = bytes.fromhex(hex_payload)
     try:
-        _active_serial_handles[radio_tx_addr].write(raw_packet_bytes)
+        _active_serial_handles[radio_tx_addr].write(bytes.fromhex(hex_payload))
         print(f"  [RADIO MESH BROADCAST] Transmitting telemetry payload string to field pager matrix loops.")
     except Exception: pass
 
@@ -259,25 +300,18 @@ def verify_live_sensor_safety_compliance(hex_address: str, raw_payload_bytes: by
     bounds = _safety_threshold_registers[clean_addr]
     max_boundary = bounds.get("upper_limit", 255)
     min_boundary = bounds.get("lower_limit", 0)
-    if measured_integer_value > max_boundary:
+    
+    if measured_integer_value > max_boundary or measured_integer_value < min_boundary:
         sys.stdout.write("\a\a\a"); sys.stdout.flush()
         print("\n" + "!" * 80)
-        print(f" !!! CRITICAL PACKET COMPLIANCE BREACH: UPPER SAFETY BOUNDS EXCEEDED !!!")
-        print(f" -> INCOMING ROUTE CHANNEL: {clean_addr} | Real-Time Value: {measured_integer_value} (MAX: {max_boundary})")
+        print(f" !!! CRITICAL PACKET COMPLIANCE BREACH: SAFETY BOUNDS EXCEEDED !!!")
+        limit_used = max_boundary if measured_integer_value > max_boundary else min_boundary
+        type_str = "MAX_EXCEEDED" if measured_integer_value > max_boundary else "MIN_EXCEEDED"
+        print(f" -> INCOMING ROUTE CHANNEL: {clean_addr} | Real-Time Value: {measured_integer_value} (LIMIT: {limit_used})")
         print("!" * 80)
         track_and_initialize_sla_timer(clean_addr)
         calculate_and_log_sla_credits(clean_addr, visio_csv)
-        dispatch_emergency_radio_broadcast(clean_addr, "MAX_EXCEEDED", max_boundary, measured_integer_value)
-        return
-    if measured_integer_value < min_boundary:
-        sys.stdout.write("\a\a\a"); sys.stdout.flush()
-        print("\n" + "!" * 80)
-        print(f" !!! CRITICAL PACKET COMPLIANCE BREACH: LOWER SAFETY BOUNDS EXCEEDED !!!")
-        print(f" -> INCOMING ROUTE CHANNEL: {clean_addr} | Real-Time Value: {measured_integer_value} (MIN: {min_boundary})")
-        print("!" * 80)
-        track_and_initialize_sla_timer(clean_addr)
-        calculate_and_log_sla_credits(clean_addr, visio_csv)
-        dispatch_emergency_radio_broadcast(clean_addr, "MIN_EXCEEDED", min_boundary, measured_integer_value)
+        dispatch_emergency_radio_broadcast(clean_addr, type_str, limit_used, measured_integer_value)
         return
     clear_sla_timer(clean_addr)
 
@@ -300,7 +334,7 @@ def process_incoming_stream(hex_address: str, raw_payload: bytes, config_data: D
     print(f"  [CORE PROCESSING RUNTIME] Address: {clean_addr} | Hex: {hex_payload_str} | Ascii: {decoded_readable_text}")
 
 # ------------------------------------------------------------------------------
-# COMMAND: LISTEN PORTS
+# TYPER COMMANDS
 # ------------------------------------------------------------------------------
 @app.command(name="listen-ports")
 def listen_ports_command(
@@ -370,9 +404,6 @@ def listen_ports_command(
         server_socket.close()
         raise typer.Exit(code=0)
 
-# ------------------------------------------------------------------------------
-# COMMAND: MANUAL ROUTE INJECTION
-# ------------------------------------------------------------------------------
 @app.command(name="route-signal")
 def route_signal_command(
     hex_address: str = typer.Argument(..., help="Target device hexadecimal address."),
@@ -390,9 +421,6 @@ def route_signal_command(
     raw_data = bytes.fromhex(payload.strip().upper())
     process_incoming_stream(hex_address, raw_data, config_data, visio_csv)
 
-# ------------------------------------------------------------------------------
-# COMMAND: QUANTUM BRIDGE ASYNC LOOP
-# ------------------------------------------------------------------------------
 class UnivacIXQuantumBridge:
     def __init__(self):
         print("[BOOT] Initializing Univac IX Quantum-State Bridge...")
@@ -436,12 +464,9 @@ class UnivacIXQuantumBridge:
                 adj_x = self._calculate_heisenberg_uncertainty(telemetry["target_x"])
                 adj_y = self._calculate_heisenberg_uncertainty(telemetry["target_y"])
                 plasma_rate = self._calculate_antimatter_flow(telemetry["throttle_pct"])
-
                 print(f"[CYCLE] Plasma Rate: {plasma_rate:.2f} THz | Target Lock: ({adj_x:.2f}, {adj_y:.2f})")
-                
                 if telemetry["teleportation_auth"]:
                     await self._engage_teleportation_drive()
-
                 await asyncio.sleep(0.1) 
         except asyncio.CancelledError:
             print("\n[SHUTDOWN] Quantum loop suspended. Venting plasma.")
@@ -456,22 +481,17 @@ async def _run_quantum_bridge_async():
 
 @app.command(name="quantum-bridge")
 def quantum_bridge_command():
-    """Initializes the Univac IX Quantum-State Bridge and Anti-Matter Teleportation Drive."""
     try:
         asyncio.run(_run_quantum_bridge_async())
     except KeyboardInterrupt:
         print("\n[SHUTDOWN] Intercepted manual shutdown.")
 
-# ------------------------------------------------------------------------------
-# COMMAND: RECOVERED DATA INTEL SCANNER & KVM INJECTOR
-# ------------------------------------------------------------------------------
 @app.command(name="scan-recovered-data")
 def scan_recovered_data_command(
     target_file: Path = typer.Argument(..., help="Path to the recovered plaintext text asset to sweep for patterns."),
     kvm_gui_config: Path = typer.Argument(..., help="Path to your active Univac_Sperry_KVM_GUI layout state file (e.g., gui_state.json)."),
     visio_csv: Path = typer.Option(Path("visio_mapping.csv"), help="The target Data Visualizer flowchart file to register hits into.")
 ):
-    """Sweeps decrypted text dumps for strategic intelligence and automatically injects multi-line token lists directly into KVM JSON files."""
     if not target_file.exists():
         print(f"[RECON FAULT] Plaintext target asset file missing at path: '{target_file}'", file=sys.stderr)
         raise typer.Exit(code=1)
@@ -479,7 +499,6 @@ def scan_recovered_data_command(
     print(f"\n======================================================================")
     print(f"AUTOMATED MULTI-LINE INJECTION ENGINE // TARGET ASSET: {target_file.name}")
     print(f"======================================================================")
-    print("[RECON] Arming intelligence regular expression traps across data sectors...")
     
     with open(target_file, "r", encoding="utf-8", errors="ignore") as f:
         file_lines = f.readlines()
@@ -499,18 +518,15 @@ def scan_recovered_data_command(
     
     for line_idx, line_content in enumerate(file_lines):
         clean_line = line_content.strip()
-        if not clean_line:
-            continue
+        if not clean_line: continue
             
         for classification_tag, regex_pattern in _INTELLIGENCE_PATTERNS.items():
             compiled_search = re.compile(regex_pattern, re.IGNORECASE)
             found_match = compiled_search.search(clean_line)
-            if not found_match:
-                continue
+            if not found_match: continue
                 
             captured_token = found_match.group(1).strip()
             total_matches_injected += 1
-            
             kvm_variable_key = f"REC_{classification_tag}_L{line_idx + 1}"
             
             current_gui_state["live_dashboard_vars"][kvm_variable_key] = {
@@ -519,9 +535,7 @@ def scan_recovered_data_command(
                 "last_synchronized": time.strftime("%Y-%m-%d %H:%M:%S"),
                 "display_status": "RENDER_ACTIVE"
             }
-            
-            sys.stdout.write("\a\a")
-            sys.stdout.flush()
+            sys.stdout.write("\a\a"); sys.stdout.flush()
             print(f"  -> [MAPPED INTEL] Variable {kvm_variable_key} => '{captured_token}' staged for injection.")
             
             log_intelligence_hit_to_visio(classification_tag, captured_token, line_idx + 1, visio_csv)
@@ -535,175 +549,133 @@ def scan_recovered_data_command(
         with open(kvm_gui_config, "w", encoding="utf-8") as target_out:
             json.dump(current_gui_state, target_out, indent=2, ensure_ascii=False)
     except Exception as io_err:
-        print(f"[KVM INJECTION FAULT] Failed to write automated multi-line list update to config file: {io_err}", file=sys.stderr)
+        print(f"[KVM INJECTION FAULT] Failed to write automated multi-line list update: {io_err}", file=sys.stderr)
         raise typer.Exit(code=2)
         
     print(f"\n[INJECTION COMPLETE] Successfully parsed file and synchronized data matrices.")
     print(f"  -> Total Multi-Line List Nodes Appended: {total_matches_injected}")
-    print(f"  -> Target KVM JSON Config Synchronized:   '{kvm_gui_config.name}'\n")
 
-# ------------------------------------------------------------------------------
-# COMMAND: SIMULATE ACTUATORS (KOMMANDOGERAT-58)
-# ------------------------------------------------------------------------------
 @app.command(name="simulate-actuators")
 def simulate_actuators_command(
-    total_actuators: int = typer.Option(1000, help="The total array length sizing count of dynamic physical piston components to generate for load simulation testing."),
-    safety_max_force_kn: float = typer.Option(50.0, help="The high-priority threshold constraint tracking absolute maximum safe push-force tolerance limits in kilonewtons.")
+    total_actuators: int = typer.Option(1000, help="The total array length sizing count of dynamic physical piston components."),
+    safety_max_force_kn: float = typer.Option(50.0, help="The absolute maximum safe push-force tolerance limits in kilonewtons.")
 ):
-    """Executes high-throughput multi-core matrix calculations tracking physical hydraulic force distributions."""
     print(f"\n======================================================================")
     print(f"KOMMANDOGERAT-58 PHYSICS CORE ENGAGED // ACTUATOR FLUID SYSTEM ENGINE")
     print(f"======================================================================")
-    print(f"[PREPARATION] Allocating structural memory grids for {total_actuators} distinct machine components...")
-    
     np.random.seed(42)
-    
     pressures_pascal = np.random.uniform(1e6, 30e6, total_actuators) 
     bores_meters = np.random.uniform(0.05, 0.25, total_actuators)   
     rods_meters = np.random.uniform(0.02, 0.12, total_actuators)    
     directions_binary = np.random.choice([0, 1], total_actuators)   
     
-    print("[COMPILER] Priming Numba cached parallel optimization calculation layers...")
-    dummy_p = np.array([6e6], dtype=np.float64)
-    dummy_b = np.array([0.1], dtype=np.float64)
-    dummy_r = np.array([0.05], dtype=np.float64)
-    dummy_d = np.array([1], dtype=np.int32)
+    dummy_p, dummy_b, dummy_r, dummy_d = np.array([6e6]), np.array([0.1]), np.array([0.05]), np.array([1])
     parallel_cpu_compute_actuator_stresses(dummy_p, dummy_b, dummy_r, dummy_d)
     
-    print("[EXECUTION] Computing vector load matrices across all host execution CPU threads simultaneously...")
     start_time = time.time()
     forces_output_newtons = parallel_cpu_compute_actuator_stresses(pressures_pascal, bores_meters, rods_meters, directions_binary)
     execution_duration = time.time() - start_time
     
-    max_measured_force_newtons = np.max(forces_output_newtons)
-    max_measured_force_kn = max_measured_force_newtons / 1000.0
-    
+    max_measured_force_kn = np.max(forces_output_newtons) / 1000.0
     print(f"[SUCCESS] Actuator kinematics mapped natively in {execution_duration:.5f} seconds.")
     print(f"  -> Mean Extracted Output Thrust Force: {(np.mean(forces_output_newtons)/1000.0):.2f} kN")
     print(f"  -> Maximum Isolated Critical Piston Load: {max_measured_force_kn:.2f} kN")
     
     if max_measured_force_kn > safety_max_force_kn:
-        sys.stdout.write("\a\a\a")
-        sys.stdout.flush()
+        sys.stdout.write("\a\a\a"); sys.stdout.flush()
         print("\n" + "!" * 80)
-        print(f" !!! CRITICAL MECHANICAL COMPLIANCE EXCEEDED: MATERIAL DEFORMATION FAILURE LIMITS THREATENED !!!")
-        print(f" -> SIMULATED THRESHOLD BOUNDS LIMIT: {safety_max_force_kn:.2f} kN")
-        print(f" -> CRITICAL STRESS PEAK CAPTURED:    {max_measured_force_kn:.2f} kN !!! BREACHED !!!")
+        print(f" !!! CRITICAL MECHANICAL COMPLIANCE EXCEEDED !!!")
         print("!" * 80 + "\n")
         raise typer.Exit(code=3)
-        
-    print(f"  -> [COMPLIANCE STATUS] All systems operating safely within structural structural constraints.\n")
 
-# ------------------------------------------------------------------------------
-# COMMAND: ANALYZE ROTARY BALANCE (KOMMANDOGERAT-58)
-# ------------------------------------------------------------------------------
 @app.command(name="analyze-rotary-balance")
-def analyze_rotary_balance_command(
-    mass_nodes_count: int = typer.Option(5, help="Total offset weights mapped along the dynamic spinning flywheel structure.")
-):
-    """Parses rotational angle orientations and weights to map dynamic static alignment vectors across dynamic shafts."""
+def analyze_rotary_balance_command(mass_nodes_count: int = typer.Option(5)):
     print(f"\n======================================================================")
     print(f"KOMMANDOGERAT-58 PHYSICS CORE ENGAGED // MULTI-AXIS ROTATIONAL BALANCE")
     print(f"======================================================================")
-    
     np.random.seed(101)
-    
     masses_kg = np.random.uniform(0.5, 12.0, mass_nodes_count)
     radii_meters = np.random.uniform(0.1, 0.8, mass_nodes_count)
     angles_degrees = np.random.uniform(0.0, 360.0, mass_nodes_count)
     
-    print(f"[RECON] Analyzing mass profiles across {mass_nodes_count} offset weight junctions...")
-    
-    dummy_m = np.array([1.0], dtype=np.float64)
-    dummy_rad = np.array([0.5], dtype=np.float64)
-    dummy_ang = np.array([45.0], dtype=np.float64)
+    dummy_m, dummy_rad, dummy_ang = np.array([1.0]), np.array([0.5]), np.array([45.0])
     parallel_cpu_verify_mass_balance(dummy_m, dummy_rad, dummy_ang)
     
     imbalance_vectors = parallel_cpu_verify_mass_balance(masses_kg, radii_meters, angles_degrees)
+    net_imbalance_magnitude = math.sqrt((imbalance_vectors[0] ** 2) + (imbalance_vectors[1] ** 2))
     
-    resultant_x = imbalance_vectors[0]
-    resultant_y = imbalance_vectors[1]
-    net_imbalance_magnitude = math.sqrt((resultant_x ** 2) + (resultant_y ** 2))
-    
-    counter_angle_rad = math.atan2(-resultant_y, -resultant_x)
-    counter_angle_deg = (counter_angle_rad * 180.0) / math.pi
-    
-    if counter_angle_deg < 0.0:
-        counter_angle_deg += 360.0
+    counter_angle_deg = (math.atan2(-imbalance_vectors[1], -imbalance_vectors[0]) * 180.0) / math.pi
+    if counter_angle_deg < 0.0: counter_angle_deg += 360.0
         
-    print("[ANALYSIS SUCCESS] Rotational inertia equations completed.")
     print(f"  -> Net Unmitigated Mechanical Centrifugal Imbalance: {net_imbalance_magnitude:.4f} kg·m")
     print(f"  -> Calculated Counterweight Vector Correction Angle: {counter_angle_deg:.2f}° Heading")
-    
-    if net_imbalance_magnitude > 2.5:
-        print(f"  -> [WARNING] High vibration harmonics flagged. Counterweight corrections must be applied immediately.\n")
-        return
-        
-    print(f"  -> [BALANCE STATUS] Dynamic structural vibrations fall within standard nominal ranges.\n")
 
-# ------------------------------------------------------------------------------
-# COMMAND: CALCULATE LINKAGE TORQUE (KOMMANDOGERAT-58)
-# ------------------------------------------------------------------------------
 @app.command(name="calculate-linkage-torque")
 def calculate_linkage_torque_command(
-    force_newtons: float = typer.Argument(..., help="Linear vector force in Newtons driving into the mechanism rod assembly."),
-    arm_length_meters: float = typer.Argument(..., help="The distance radius from the rotational axis spindle to the force input junction point."),
-    angle_degrees: float = typer.Option(90.0, help="The relative angle in degrees where the force strikes the leverage arm surface.")
+    force_newtons: float = typer.Argument(...),
+    arm_length_meters: float = typer.Argument(...),
+    angle_degrees: float = typer.Option(90.0)
 ):
-    """Calculates instantaneous torsional moments on mechanical shafts or rotary actuators using strict guard boundaries."""
-    if force_newtons <= 0.0:
-        print("[INPUT ERROR] Applied line force parameters must reflect real-world positive attributes.", file=sys.stderr)
+    if force_newtons <= 0.0 or arm_length_meters <= 0.0:
+        print("[INPUT ERROR] Valid structural bounds required.", file=sys.stderr)
         raise typer.Exit(code=1)
-        
-    if arm_length_meters <= 0.0:
-        print("[INPUT ERROR] Moment arm lengths must possess valid physical distance extensions.", file=sys.stderr)
-        raise typer.Exit(code=1)
-        
     computed_torque_nm = evaluate_rotational_torque_nm(force_newtons, arm_length_meters, angle_degrees)
-    
-    print(f"\n======================================================================")
-    print(f"KOMMANDOGERAT-58 MECHANICAL TORQUE REPORT")
-    print(f"======================================================================")
-    print(f"  -> Extracted Input Force:      {force_newtons:.2f} N")
-    print(f"  -> Moment Arm Radius Length:  {arm_length_meters:.3f} m")
-    print(f"  -> Angle of Incidence Vector: {angle_degrees:.1f}°")
     print(f"  -> NET CALCULATED SHAFTS TORQUE OUTPUT: {computed_torque_nm:.2f} N·m\n")
 
-# ------------------------------------------------------------------------------
-# COMMAND: AUDIT KG-58 TO VISIO (NEW)
-# ------------------------------------------------------------------------------
 @app.command(name="audit-kg58-to-visio")
 def audit_kg58_to_visio_command(
-    visio_csv: Path = typer.Argument(..., help="Path to your active visio_mapping.csv Data Visualizer ledger tracking file."),
-    sim_count: int = typer.Option(5, help="Total hardware actuator nodes to generate and evaluate for real-time audit insertion."),
-    max_safe_kn: float = typer.Option(50.0, help="SLA critical safety maximum threshold constraint tracking material stress limitations in kilonewtons.")
+    visio_csv: Path = typer.Argument(...),
+    sim_count: int = typer.Option(5),
+    max_safe_kn: float = typer.Option(50.0)
 ):
-    """Executes live Numba multi-core physics equations and updates your visual flowchart templates automatically with load metrics."""
-    print(f"\n======================================================================")
-    print(f"KOMMANDOGERAT-58 DYNAMIC VISIO COUPLING MATRIX ENGAGED")
-    print(f"======================================================================")
     if not visio_csv.exists():
-        print(f"[AUDIT FAULT] Target Data Visualizer mapping sheet missing at location: '{visio_csv}'", file=sys.stderr)
         raise typer.Exit(code=1)
-        
     np.random.seed(2026)
-    
     pressures_pascal = np.random.uniform(5e6, 40e6, sim_count)
     bores_meters = np.random.uniform(0.08, 0.22, sim_count)
     rods_meters = np.random.uniform(0.03, 0.10, sim_count)
     directions_binary = np.random.choice([0, 1], sim_count)
     
-    print(f"[PHYSICS] Computing {sim_count} distinct hydraulic kinematic load frames across multi-core fabrics...")
     forces_output_newtons = parallel_cpu_compute_actuator_stresses(pressures_pascal, bores_meters, rods_meters, directions_binary)
-    
     for idx in range(sim_count):
-        measured_force = forces_output_newtons[idx]
-        append_mechanical_audit_to_visio(idx, measured_force, max_safe_kn, visio_csv)
-        
-    print(f"\n[AUDIT COMPLETED] Real-time structural data models appended into visual layout: '{visio_csv.name}'\n")
+        append_mechanical_audit_to_visio(idx, forces_output_newtons[idx], max_safe_kn, visio_csv)
+    print(f"\n[AUDIT COMPLETED] Real-time models appended to: '{visio_csv.name}'\n")
 
 # ------------------------------------------------------------------------------
-# ENTRY POINT
+# COMMAND: MAP KINETICS TO KVM (NEW)
 # ------------------------------------------------------------------------------
+@app.command(name="map-kinetics-to-kvm")
+def map_kinetics_to_kvm_command(
+    kvm_gui_config: Path = typer.Argument(..., help="Path to your active Univac_Sperry_KVM_GUI state layout file (e.g., gui_state.json)."),
+    device_count: int = typer.Option(3, help="Total connected motors or servo shafts to evaluate and manifest into the dashboard panel views.")
+):
+    """Parses real-time kinetic parameters, rectifies plane angle orientation anomalies, and streams live variables straight into KVM configs."""
+    print(f"\n======================================================================")
+    print(f"UNIVAC-IX ORIENTATION RECTIFICATION CORE // TARGET KVM: {kvm_gui_config.name}")
+    print(f"======================================================================")
+    print(f"[PHYSICS] Ingesting multi-axis angular metrics across {device_count} servo motor junctions...")
+    
+    np.random.seed(55)
+    
+    forces_newtons = np.random.uniform(50.0, 500.0, device_count)
+    arm_lengths_meters = np.random.uniform(0.05, 0.4, device_count)
+    force_incidence_angles = np.random.uniform(30.0, 90.0, device_count)
+    
+    orientation_plane_angles = np.array([0.0, 90.0, 45.0], dtype=np.float64)[:device_count]
+    if device_count > 3:
+        padding = np.random.uniform(0.0, 90.0, device_count - 3)
+        orientation_plane_angles = np.concatenate((orientation_plane_angles, padding))
+
+    adjusted_torques_matrix = parallel_cpu_compute_servo_matrix(
+        forces_newtons, arm_lengths_meters, force_incidence_angles, orientation_plane_angles
+    )
+
+    for idx in range(device_count):
+        measured_plane_angle = orientation_plane_angles[idx]
+        computed_torque = adjusted_torques_matrix[idx]
+        inject_servo_metrics_to_kvm_config(idx, measured_plane_angle, computed_torque, kvm_gui_config)
+
+    print(f"\n[INJECTION COMPLETE] Unified kinematics synchronized. All device angles are cleanly labeled inside your KVM GUI view templates.\n")
+
 if __name__ == "__main__":
     app()
