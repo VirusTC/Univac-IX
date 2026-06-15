@@ -1,3 +1,7 @@
 pyserial
 pyyaml
 typer
+numba
+pyyaml
+typer
+pyserial
