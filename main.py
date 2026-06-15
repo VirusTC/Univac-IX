@@ -1,14 +1,20 @@
 import sys
 import os
 import time
+import socket
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 import yaml
 import typer
 
+# Conditional import for hardware serial infrastructure to prevent startup crashes on virtual-only environments
+try:
+    import serial
+except ImportError:
+    serial = None
+
 app = typer.Typer(help="Dynamic Plug-and-Play UNIVAC Mainframe Hardware Emulator Fabric")
 
-# Global reference state to check for dynamic hot-swap additions
 _loaded_nodes_cache: List[str] = []
 
 def validate_word_alignment(bit_length: int) -> None:
@@ -34,15 +40,42 @@ def load_system_config(config_path: Path) -> Dict[str, Any]:
     print(f"Configuration Fault: Path {config_path} not found.", file=sys.stderr)
     raise typer.Exit(code=1)
 
-def discover_hot_plugged_nodes(old_cache: List[str], current_nodes: List[Dict[str, Any]]) -> List[str]:
-    """Identifies newly appended physical or virtual nodes during runtime modifications."""
-    new_additions: List[str] = []
-    for node in current_nodes:
-        node_id = node.get("id", "UNKNOWN")
-        if node_id in old_cache:
+def process_incoming_stream(hex_address: str, raw_payload: bytes, config_data: Dict[str, Any]) -> None:
+    """Dispatches raw bytes collected from networks or serial feeds straight to internal module logic structures."""
+    clean_addr = hex_address.strip().lower()
+    hex_payload_str = raw_payload.hex().upper()
+    
+    system_word_size = config_data.get("system", {}).get("default_word_size", 36)
+    validate_word_alignment(system_word_size)
+
+    for node in config_data.get("nodes", []):
+        if node.get("hex_address", "").lower() != clean_addr:
             continue
-        new_additions.append(node_id)
-    return new_additions
+        if node.get("status") != "ACTIVE":
+            print(f"[PORT IO] Incoming on standby node {node.get('id')} rejected.", file=sys.stderr)
+            return
+            
+        match node.get("target_module"):
+            case "aegis-bridge":
+                print(f"[HW RECEIVE -> AEGIS] Node: {node['name']} | Hex Address: {clean_addr} | Stream: {hex_payload_str}")
+                return
+            case "aviation-knowledge":
+                print(f"[HW RECEIVE -> AVIATION] Telemetry Input Detected | Stream: {hex_payload_str}")
+                return
+            case "safety-monitor":
+                print(f"[HW RECEIVE -> SAFETY] Sensory bus processing | Stream: {hex_payload_str}")
+                return
+            case "otis-gen360":
+                print(f"[HW RECEIVE -> OTIS] Vertical data alignment shift | Stream: {hex_payload_str}")
+                return
+            case "antigravity":
+                print(f"[HW RECEIVE -> ANTIGRAVITY] Processing field manipulation vector | Stream: {hex_payload_str}")
+                return
+            case _:
+                print(f"[PORT IO FAULT] Module route target '{node.get('target_module')}' unreachable.", file=sys.stderr)
+                return
+
+    print(f"[PORT IO WARNING] Data captured from unmapped hardware link: Address {hex_address}.", file=sys.stderr)
 
 
 @app.command(name="route-signal")
@@ -53,127 +86,85 @@ def route_signal_command(
 ):
     """Dynamically interfaces and maps I/O signals to attached repository software layers."""
     config_data = load_system_config(config)
-    clean_addr = hex_address.strip().lower()
-    clean_payload = payload.strip().upper()
-    
-    raw_data = convert_hex_stream(clean_payload)
-    system_word_size = config_data.get("system", {}).get("default_word_size", 36)
-    validate_word_alignment(system_word_size)
-
-    for node in config_data.get("nodes", []):
-        if node.get("hex_address", "").lower() != clean_addr:
-            continue
-        
-        if node.get("status") != "ACTIVE":
-            print(f"Pipeline Deferred: Node {node.get('id')} is on STANDBY or OFFLINE.", file=sys.stderr)
-            raise typer.Exit(code=0)
-            
-        match node.get("target_module"):
-            case "aegis-bridge":
-                print(f"[MODULE: AEGIS] Routing to {node['name']} ({node['type']}) -> Payload: {raw_data.hex()}")
-                return
-            case "aviation-knowledge":
-                print(f"[MODULE: AVIATION] Parsing flight telemetry payload stream -> {raw_data.hex()}")
-                return
-            case "safety-monitor":
-                print(f"[MODULE: SAFETY] Injecting hardware sensory data -> {raw_data.hex()}")
-                return
-            case "otis-gen360":
-                print(f"[MODULE: OTIS] Processing vertical transit system matrix data -> {raw_data.hex()}")
-                return
-            case _:
-                print(f"Module Fault: Target routine '{node.get('target_module')}' missing implementation.", file=sys.stderr)
-                raise typer.Exit(code=4)
-
-    print(f"Routing Fault: Address {hex_address} matches no mapped hardware node.", file=sys.stderr)
-    raise typer.Exit(code=2)
+    raw_data = convert_hex_stream(payload.strip().upper())
+    process_incoming_stream(hex_address, raw_data, config_data)
 
 
-@app.command(name="monitor-fabric")
-def monitor_fabric_command(
-    config: Path = typer.Option(Path("config.yaml"), help="Path to the node configuration file to poll for hot-plugs."),
-    interval: float = typer.Option(1.0, help="Polling interval gap delay in fractional seconds.")
+@app.command(name="listen-ports")
+def listen_ports_command(
+    config: Path = typer.Option(Path("config.yaml"), help="Path to the system topology file."),
+    baud_rate: int = typer.Option(9600, help="Default baud speed calculation parameter for physical serial lines."),
+    network_port: int = typer.Option(8080, help="Local network port baseline bound for socket stream capture.")
 ):
-    """Launches a live background listener loop detecting on-the-fly hardware attachments."""
-    global _loaded_nodes_cache
-    if not config.exists():
-        print(f"Initialization Fault: Cannot monitor non-existent target '{config}'", file=sys.stderr)
-        raise typer.Exit(code=1)
-        
-    print(f"[FABRIC] Initializing hardware framework mapping observer for: {config}")
-    initial_data = load_system_config(config)
-    _loaded_nodes_cache = [node.get("id", "UNKNOWN") for node in initial_data.get("nodes", [])]
-    print(f"[FABRIC] Monitoring {_loaded_nodes_cache} active baseline interface pathways...")
+    """Binds live parallel hardware interface frameworks to capture physical serial and TCP sockets."""
+    config_data = load_system_config(config)
+    print(f"[IO DAEMON] Initializing communications interface matrix on Core Network Port: {network_port}")
+    
+    # Configure and open TCP socket daemon interface
+    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    server_socket.bind(("0.0.0.0", network_port))
+    server_socket.listen(5)
+    server_socket.setblocking(False) # Prevent thread deadlock
+    
+    # Track opened hardware pipelines
+    active_serial_handles: Dict[str, Any] = {}
+    
+    # Locate all active node pathways claiming hardware connectivity mappings
+    for node in config_data.get("nodes", []):
+        port_path = node.get("port", "")
+        if not port_path.startswith("/dev/"):
+            continue
+        if not serial:
+            print(f"[SERIAL FAULT] Node {node.get('id')} requests {port_path} but 'pyserial' driver is missing.", file=sys.stderr)
+            continue
+            
+        try:
+            print(f"[IO DAEMON] Mounting physical adapter link: {port_path} @ {baud_rate}bps")
+            ser = serial.Serial(port_path, baudrate=baud_rate, timeout=0.1)
+            active_serial_handles[node.get("hex_address").lower()] = ser
+        except Exception as e:
+            print(f"[SERIAL WARNING] Could not bind physical device port {port_path}: {e}", file=sys.stderr)
 
-    last_modified_time = config.stat().st_mtime
+    print("[IO DAEMON] Multi-channel pipeline open. Listening for live machine frames... (Ctrl+C to halt)")
 
     try:
         while True:
-            time.sleep(interval)
-            current_modified_time = config.stat().st_mtime
-            
-            if current_modified_time == last_modified_time:
-                continue
-                
-            # Document mutation state event
-            print("[HOTPLUG EVENT] Change flagged on hardware registry map. Parsing additions...")
-            last_modified_time = current_modified_time
-            
-            updated_data = load_system_config(config)
-            current_nodes = updated_data.get("nodes", [])
-            
-            new_nodes = discover_hot_plugged_nodes(_loaded_nodes_cache, current_nodes)
-            
-            if not new_nodes:
-                print("[HOTPLUG WARNING] Registry update contains no completely new Node IDs.")
-                # Refresh cache layout regardless to parse non-structural data mutations
-                _loaded_nodes_cache = [node.get("id", "UNKNOWN") for node in current_nodes]
-                continue
+            # 1. Process TCP Network Sockets
+            try:
+                client_sock, client_addr = server_socket.accept()
+                client_sock.settimeout(0.5)
+                raw_buffer = client_sock.recv(1024)
+                if raw_buffer:
+                    # Expecting standard framed formatting: "HEX_ADDRESS:PAYLOAD_HEX" (e.g. "0x00A1:4A6F6E6573")
+                    payload_str = raw_buffer.decode('utf-8').strip()
+                    if ":" in payload_str:
+                        addr, data_hex = payload_str.split(":", 1)
+                        converted_payload = bytes.fromhex(data_hex.strip())
+                        process_incoming_stream(addr, converted_payload, config_data)
+                client_sock.close()
+            except BlockingIOError:
+                pass # No incoming connections present on this step cycle
+            except Exception as ex:
+                pass
 
-            for node in current_nodes:
-                if node.get("id") not in new_nodes:
+            # 2. Process Physical Serial Hardware Inputs
+            for hex_addr, serial_connection in active_serial_handles.items():
+                if not serial_connection.in_waiting:
                     continue
-                print(f" -> PLUG-AND-PLAY MOUNTED: Node [{node.get('id')}] -> Name: {node.get('name')} Address: {node.get('hex_address')} Module target: {node.get('target_module')}")
-                
-            # Append completely synchronized entities back to running session state mapping
-            _loaded_nodes_cache = [node.get("id", "UNKNOWN") for node in current_nodes]
-            
+                serial_raw = serial_connection.read(serial_connection.in_waiting)
+                if serial_raw:
+                    # Direct data byte injection mapped directly to its hardwired bus allocation
+                    process_incoming_stream(hex_addr, serial_raw, config_data)
+
+            time.sleep(0.05) # Minimize execution frame load strains
+
     except KeyboardInterrupt:
-        print("\n[FABRIC] Terminating active hardware mapping watch process cleanly.")
+        print("\n[IO DAEMON] Unmounting hardware channels and closing network stack components safely.")
+        server_socket.close()
+        for handle in active_serial_handles.values():
+            handle.close()
         raise typer.Exit(code=0)
-
-
-@app.command(name="export-visio")
-def export_visio_command(
-    config: Path = typer.Option(Path("config.yaml"), help="Path to the node configuration registry file."),
-    output: Path = typer.Option(Path("visio_mapping.csv"), help="Target path for Visio Data Visualizer CSV output.")
-):
-    """Generates a Visio-compliant Data Visualizer CSV mapping file from the active framework."""
-    config_data = load_system_config(config)
-    
-    with open(output, "w") as f:
-        f.write("Process Step ID,Step Name,Description,Next Step ID,Resource,Node Type,Hardware Port,Hex Address\n")
-        nodes = config_data.get("nodes", [])
-        total_nodes = len(nodes)
-        
-        for index, node in enumerate(nodes):
-            next_index = index + 1
-            next_step = f"NODE_0{next_index + 1}"
-            if next_index >= total_nodes:
-                next_step = ""
-                
-            f.write(
-                f"{node['id']},"
-                f"{node['name']},"
-                f"Routes signals to {node['target_module']},"
-                f"{next_step},"
-                f"{node['target_module'].upper()},"
-                f"{node['type']},"
-                f"{node['port']},"
-                f"{node['hex_address']}\n"
-            )
-            
-    print(f"Success: Visio structural file compiled at '{output}'.")
 
 
 if __name__ == "__main__":
