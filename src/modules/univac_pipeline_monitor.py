@@ -14,6 +14,16 @@ import re
 import csv
 from pathlib import Path
 
+# 1. Resolve the absolute path of the current script's directory (src/modules/)
+MODULE_DIR = Path(__file__).resolve().parent
+
+# 2. Step up two levels to dynamically lock onto the Repository Root
+ROOT_DIR = MODULE_DIR.parent.parent
+
+# 3. Inject Root into sys.path so modules can import each other seamlessly
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+    
 # Third-party pipeline dependencies
 try:
     from watchdog.observers import Observer
@@ -29,7 +39,10 @@ BASE_DIR = Path(__file__).resolve().parent
 DROPZONE_DIR = BASE_DIR / "storage_pipeline" / "inbound_dropzone"
 PROCESSED_DIR = BASE_DIR / "storage_pipeline" / "processed"
 FAILED_DIR = BASE_DIR / "storage_pipeline" / "failed"
-MASTER_VCF = BASE_DIR / "master_database.vcf"
+MASTER_VCF = ROOT_DIR / "master_database.vcf"
+STORAGE_PIPELINE = ROOT_DIR / "storage_pipeline"
+GANTRY_TEMPLATES = STORAGE_PIPELINE / "gantry_site_templates"
+ASSETS_DIR = ROOT_DIR / "assets"
 
 # Ensure core repository directories exist structural layout
 for folder in [DROPZONE_DIR, PROCESSED_DIR, FAILED_DIR]:
