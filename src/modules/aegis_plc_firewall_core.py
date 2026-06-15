@@ -1,6 +1,6 @@
 # File Name: aegis_plc_firewall_core.py
 # Location: /src/modules/
-# Subsystem: Aegis Internal PLC Firewall & Packet Inspection
+# Subsystem: Aegis Internal PLC Firewall & Packet Inspection UPDATE
 # Copyright (c) 2026 Revolutionary Technology
 
 import time
