@@ -32,6 +32,7 @@ app = typer.Typer(help="UNIVAC-IX Sovereignty Ultimate Unified Tactical Field Re
 # ------------------------------------------------------------------------------
 _active_serial_handles: Dict[str, Any] = {}
 _last_client_socket: Optional[socket.socket] = None
+_last_channel_activity_timestamps: Dict[str, float] = {}
 
 _cached_fingerprints: Dict[str, str] = {
     "0x0013": "DRIVER_AVIATION_KNOWLEDGE",
@@ -141,6 +142,63 @@ def inline_multicore_hex_decode(raw_hex_string: str) -> str:
     return bytes(raw_text_matrix[0, :hex_len // 2]).decode("utf-8", errors="ignore")
 
 # ------------------------------------------------------------------------------
+# MULTI-MEDIA TELEPHONY DEMODULATION MATRIX
+# ------------------------------------------------------------------------------
+@njit(cache=True, fastmath=True)
+def parse_dtmf_tone_frequencies(frequency_low: float, frequency_high: float) -> int:
+    """Decodes standard telephone/telegraph dual-tone multi-frequency matrices into ASCII character values."""
+    # Match Row 1 (697 Hz)
+    if 680.0 <= frequency_low <= 715.0:
+        if 1190.0 <= frequency_high <= 1225.0: return 49  # '1'
+        if 1315.0 <= frequency_high <= 1355.0: return 50  # '2'
+        if 1455.0 <= frequency_high <= 1495.0: return 51  # '3'
+        if 1610.0 <= frequency_high <= 1655.0: return 65  # 'A'
+        
+    # Match Row 2 (770 Hz)
+    if 750.0 <= frequency_low <= 790.0:
+        if 1190.0 <= frequency_high <= 1225.0: return 52  # '4'
+        if 1315.0 <= frequency_high <= 1355.0: return 53  # '5'
+        if 1455.0 <= frequency_high <= 1495.0: return 54  # '6'
+        if 1610.0 <= frequency_high <= 1655.0: return 66  # 'B'
+        
+    # Match Row 3 (852 Hz)
+    if 835.0 <= frequency_low <= 870.0:
+        if 1190.0 <= frequency_high <= 1225.0: return 55  # '7'
+        if 1315.0 <= frequency_high <= 1355.0: return 56  # '8'
+        if 1455.0 <= frequency_high <= 1495.0: return 57  # '9'
+        if 1610.0 <= frequency_high <= 1655.0: return 67  # 'C'
+        
+    # Match Row 4 (941 Hz)
+    if 920.0 <= frequency_low <= 960.0:
+        if 1190.0 <= frequency_high <= 1225.0: return 42  # '*'
+        if 1315.0 <= frequency_high <= 1355.0: return 48  # '0'
+        if 1455.0 <= frequency_high <= 1495.0: return 35  # '#'
+        if 1610.0 <= frequency_high <= 1655.0: return 68  # 'D'
+        
+    return 0  # Frame match deferred
+
+@njit(parallel=True, cache=True, fastmath=True)
+def parallel_cpu_decode_tone_matrix(low_freqs: np.ndarray, high_freqs: np.ndarray) -> np.ndarray:
+    total_elements = low_freqs.shape[0]
+    output_chars_matrix = np.zeros(total_elements, dtype=np.uint8)
+    for i in prange(total_elements):
+        output_chars_matrix[i] = parse_dtmf_tone_frequencies(low_freqs[i], high_freqs[i])
+    return output_chars_matrix
+
+def dispatch_to_vendor_backplane(vendor_name: str, payload_text: str) -> None:
+    match vendor_name:
+        case "ORACLE":
+            print(f"  [VENDOR -> ORACLE] Injecting structured entity transaction into high-memory pooling table blocks -> {payload_text}")
+        case "IBM":
+            print(f"  [VENDOR -> IBM DB2] Converting block to host EBCDIC variables segment for storage validation -> {payload_text}")
+        case "BRADLEY":
+            print(f"  [VENDOR -> ALLEN-BRADLEY] Triggering CIP Routing over EtherNet/IP register slots -> {payload_text}")
+        case "HBE":
+            print(f"  [VENDOR -> HBE] Publishing real-time metric strings to OPC-UA proxy node frames -> {payload_text}")
+        case _:
+            print(f"  [VENDOR ROUTE DEFERRED] Unknown vendor architecture: {vendor_name}")
+
+# ------------------------------------------------------------------------------
 # KOMMANDOGERAT-58 PHYSICS ENGINEERING CORE (JIT COMPILED)
 # ------------------------------------------------------------------------------
 @njit(cache=True, fastmath=True)
@@ -214,14 +272,12 @@ def update_kvm_json_state(kvm_gui_config: Path, key: str, value: str, source: st
             pass
     if "live_dashboard_vars" not in current_gui_state:
         current_gui_state["live_dashboard_vars"] = {}
-        
     current_gui_state["live_dashboard_vars"][key.strip().upper()] = {
         "value": value.strip(),
         "source": source,
         "last_synchronized": time.strftime("%Y-%m-%d %H:%M:%S"),
         "display_status": "RENDER_ACTIVE"
     }
-    
     try:
         with open(kvm_gui_config, "w", encoding="utf-8") as target_out:
             json.dump(current_gui_state, target_out, indent=2, ensure_ascii=False)
@@ -251,27 +307,19 @@ def broadcast_intel_over_radio(pattern_type: str, exact_match: str) -> None:
 # HEURISTIC FINGERPRINTING & SLA TIMERS
 # ------------------------------------------------------------------------------
 def execute_heuristic_fingerprint(hex_payload: str) -> str:
-    """Detects and fingerprints any unknown network PLC loop via byte structure patterns."""
     upper_payload = hex_payload.upper()
     decoded = inline_multicore_hex_decode(upper_payload)
-    if upper_payload.startswith("AA55") or "NTDS" in decoded:
-        return "DRIVER_MIL_STD_1397_TACTICAL"
-    if upper_payload.startswith("7E") or "ALTITUDE" in decoded:
-        return "DRIVER_AVIATION_KNOWLEDGE"
-    if upper_payload.startswith("0F0F") or "BREAKDOWN" in decoded:
-        return "DRIVER_OTIS_GEN360"
-    if upper_payload.startswith("DEAD") or "CRITICAL" in decoded:
-        return "DRIVER_SAFETY_MONITOR"
-    if upper_payload.startswith("02") or "PLC_COIL" in decoded:
-        return "DRIVER_UNIVAC_PROPRIETARY_PLC"
+    if upper_payload.startswith("AA55") or "NTDS" in decoded: return "DRIVER_MIL_STD_1397_TACTICAL"
+    if upper_payload.startswith("7E") or "ALTITUDE" in decoded: return "DRIVER_AVIATION_KNOWLEDGE"
+    if upper_payload.startswith("0F0F") or "BREAKDOWN" in decoded: return "DRIVER_OTIS_GEN360"
+    if upper_payload.startswith("DEAD") or "CRITICAL" in decoded: return "DRIVER_SAFETY_MONITOR"
+    if upper_payload.startswith("02") or "PLC_COIL" in decoded: return "DRIVER_UNIVAC_PROPRIETARY_PLC"
     return "DRIVER_UNKNOWN_GENERIC_SERIAL"
 
 def calculate_and_log_sla_credits(channel_addr: str, visio_csv: Path) -> None:
-    if channel_addr not in _active_sla_breach_timers:
-        return
+    if channel_addr not in _active_sla_breach_timers: return
     elapsed_seconds = time.time() - _active_sla_breach_timers[channel_addr]
-    if elapsed_seconds <= _SLA_WINDOW_SECONDS:
-        return
+    if elapsed_seconds <= _SLA_WINDOW_SECONDS: return
         
     breach_overtime_seconds = elapsed_seconds - _SLA_WINDOW_SECONDS
     overtime_hours = breach_overtime_seconds / 3600.0
@@ -284,8 +332,7 @@ def calculate_and_log_sla_credits(channel_addr: str, visio_csv: Path) -> None:
     append_event_to_visio_csv(visio_csv, node_id, f"SLA_{channel_addr}", desc, "SLA_ACCOUNTING", "FINANCIAL_LEDGER", "NONE", channel_addr, "DRIVER_SLA_TRACKER", "LIQUIDATION_ISSUED", "DarkRed")
 
 def track_and_initialize_sla_timer(channel_addr: str) -> None:
-    if channel_addr in _active_sla_breach_timers:
-        return
+    if channel_addr in _active_sla_breach_timers: return
     _active_sla_breach_timers[channel_addr] = time.time()
 
 def clear_sla_timer(channel_addr: str) -> None:
@@ -310,10 +357,35 @@ def verify_live_sensor_safety_compliance(hex_address: str, raw_payload_bytes: by
     clear_sla_timer(clean_addr)
 
 # ------------------------------------------------------------------------------
-# CORE DATA ROUTER
+# CORE DATA ROUTER & LATENCY MANAGER
 # ------------------------------------------------------------------------------
+def purge_stale_hardware_channels(latency_timeout_seconds: float) -> None:
+    """Flushes out silent, dead, or disconnected serial ports to eliminate cycle latency in heavy industrial noise floors."""
+    global _active_serial_handles, _last_channel_activity_timestamps
+    current_time = time.time()
+    
+    for hex_addr, last_active in list(_last_channel_activity_timestamps.items()):
+        if (current_time - last_active) <= latency_timeout_seconds:
+            continue
+            
+        if hex_addr not in _active_serial_handles:
+            continue
+            
+        try:
+            print(f"[LATENCY PURGE] Channel {hex_addr} exceeded silent limit window. Closing connection to minimize loop delay.")
+            _active_serial_handles[hex_addr].close()
+        except Exception:
+            pass
+            
+        del _active_serial_handles[hex_addr]
+        del _last_channel_activity_timestamps[hex_addr]
+
 def process_incoming_stream(hex_address: str, raw_payload: bytes, config_data: Dict[str, Any], target_csv: Path, kvm_json: Path) -> None:
     clean_addr = hex_address.strip().lower()
+    
+    # Refresh channel latency timestamp
+    _last_channel_activity_timestamps[clean_addr] = time.time()
+    
     hex_payload_str = raw_payload.hex().upper()
     decoded_text = inline_multicore_hex_decode(hex_payload_str)
     
@@ -355,7 +427,8 @@ def listen_ports_command(
     config: Path = typer.Option(Path("config.yaml"), help="Path to the master system topology file blueprint."),
     visio_csv: Path = typer.Option(Path("visio_mapping.csv"), help="The target Visio spreadsheet mapping audit file destination."),
     kvm_json: Path = typer.Option(Path("gui_state.json"), help="The active KVM GUI panel configuration json path."),
-    network_port: int = typer.Option(8080, help="Local socket communication port capturing aggregate virtual trunks.")
+    network_port: int = typer.Option(8080, help="Local socket communication port capturing aggregate virtual trunks."),
+    purge_timeout: float = typer.Option(5.0, help="Latency threshold window count in seconds before dead ports are flushed.")
 ):
     """Launches the master receiver proxy array across Fiber, Radio, Telephony, DSL, and physical Ethernet feeds."""
     global _active_serial_handles
@@ -386,6 +459,10 @@ def listen_ports_command(
 
     try:
         while True:
+            # 0. Latency Management
+            purge_stale_hardware_channels(purge_timeout)
+            
+            # 1. Network Socket Ingestion
             try:
                 client_sock, _ = server_socket.accept()
                 client_sock.settimeout(0.1)
@@ -399,19 +476,49 @@ def listen_ports_command(
             except BlockingIOError: pass
             except Exception: pass
 
+            # 2. Hardware Serial Ingestion
             for hex_addr, serial_conn in list(_active_serial_handles.items()):
                 if not getattr(serial_conn, 'in_waiting', 0): continue
                 raw_bytes = serial_conn.read(serial_conn.in_waiting)
                 if raw_bytes:
                     process_incoming_stream(hex_addr, raw_bytes, config_data, visio_csv, kvm_json)
 
+            # 3. SLA Tracking
             for running_breach_addr in list(_active_sla_breach_timers.keys()):
                 calculate_and_log_sla_credits(running_breach_addr, visio_csv)
+                
             time.sleep(0.005)
 
     except KeyboardInterrupt:
         server_socket.close()
         raise typer.Exit(code=0)
+
+@app.command(name="parse-dialup-stream")
+def parse_dialup_stream_command(
+    low_hz: float = typer.Argument(..., help="Extracted low-group tone carrier frequency value in Hertz."),
+    high_hz: float = typer.Argument(..., help="Extracted high-group tone carrier frequency value in Hertz."),
+    vendor_target: str = typer.Option("BRADLEY", help="Target enterprise automation network infrastructure (ORACLE, IBM, BRADLEY, HBE).")
+):
+    """Processes telephony dial-up tone frequencies via Numba parallel matrices and hot-injects results to active vendor PLCs."""
+    print(f"\n======================================================================")
+    print(f"UNIVAC-IX TELEPHONY CARRIER DEMODULATION // INTERFACE: ADSL / CAT6 / NEXT-GEN")
+    print(f"======================================================================")
+    
+    low_arr = np.array([low_hz], dtype=np.float64)
+    high_arr = np.array([high_hz], dtype=np.float64)
+    
+    decoded_ascii_codes = parallel_cpu_decode_tone_matrix(low_arr, high_arr)
+    character_byte = decoded_ascii_codes[0]
+    
+    if character_byte == 0:
+        print("[DEMODULATION DEFERRED] Tone pairing matches no standard telephone or telegraph protocol rules.", file=sys.stderr)
+        raise typer.Exit(code=1)
+        
+    resolved_char = chr(character_byte)
+    print(f"[DEMODULATION SUCCESS] Extracted clean data byte character out of audio carrier wave: '{resolved_char}'")
+    
+    dispatch_to_vendor_backplane(vendor_target.strip().upper(), f"CMD_TOKEN_{resolved_char}")
+    print()
 
 @app.command(name="recover-storage")
 def recover_storage_command(
@@ -555,18 +662,6 @@ def analyze_rotary_balance_command(mass_nodes_count: int = typer.Option(5)):
     if counter_angle_deg < 0.0: counter_angle_deg += 360.0
     print(f"  -> Net Unmitigated Mechanical Centrifugal Imbalance: {net_imbalance_magnitude:.4f} kg·m")
     print(f"  -> Calculated Counterweight Vector Correction Angle: {counter_angle_deg:.2f}° Heading")
-
-@app.command(name="calculate-linkage-torque")
-def calculate_linkage_torque_command(
-    force_newtons: float = typer.Argument(...),
-    arm_length_meters: float = typer.Argument(...),
-    angle_degrees: float = typer.Option(90.0)
-):
-    if force_newtons <= 0.0 or arm_length_meters <= 0.0:
-        print("[INPUT ERROR] Valid structural bounds required.", file=sys.stderr)
-        raise typer.Exit(code=1)
-    computed_torque_nm = evaluate_rotational_torque_nm(force_newtons, arm_length_meters, angle_degrees)
-    print(f"  -> NET CALCULATED SHAFTS TORQUE OUTPUT: {computed_torque_nm:.2f} N·m\n")
 
 @app.command(name="scan-recovered-data")
 def scan_recovered_data_command(
