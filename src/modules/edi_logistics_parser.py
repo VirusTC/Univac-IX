@@ -1,6 +1,6 @@
 # File Name: edi_logistics_parser.py
 # Location: /src/modules/
-# Subsystem: High-Speed EDIFACT / X12 Logistics Document Parser
+# Subsystem: High-Speed EDIFACT / X12 Logistics Document Parser UPDATED
 # Copyright (c) 2026 Revolutionary Technology
 
 import time
