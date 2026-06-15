@@ -10,6 +10,23 @@ import os
 import wave
 import struct
 import math
+from pathlib import Path
+
+# 1. Resolve the absolute path of the current script's directory (src/modules/)
+MODULE_DIR = Path(__file__).resolve().parent
+
+# 2. Step up two levels to dynamically lock onto the Repository Root
+ROOT_DIR = MODULE_DIR.parent.parent
+
+# 3. Inject Root into sys.path so modules can import each other seamlessly
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
+# 4. Map absolute paths to critical infrastructure
+MASTER_VCF = ROOT_DIR / "master_database.vcf"
+STORAGE_PIPELINE = ROOT_DIR / "storage_pipeline"
+GANTRY_TEMPLATES = STORAGE_PIPELINE / "gantry_site_templates"
+ASSETS_DIR = ROOT_DIR / "assets"
 
 # --- REVERSE BAUDOT / ITA2 CODEBOOK ---
 # Maps 5-bit integers back to characters depending on the active shift state.
