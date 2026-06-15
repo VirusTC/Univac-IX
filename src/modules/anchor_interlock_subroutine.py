@@ -1,6 +1,6 @@
 # File Name: anchor_interlock_subroutine.py
 # Location: /src/control_core/
-# Subsystem: Autonomous Commercial Anchor Windlass Interlock
+# Subsystem: Autonomous Commercial Anchor Windlass Interlock UPDATED
 # Copyright (c) 2026 Revolutionary Technology
 
 import time
