@@ -16,6 +16,25 @@ gateway_configuration:
     subnet_mask: "255.255.255.0"
     enforce_switch_mac_binding: true
 
+sf_trunk_policing:
+  target_frequency_hz: 2600
+  power_magnitude_floor: 15.0
+  interceptor_nodes:
+    - address: "0x0013"
+      label: "TELEPHONY_TRUNK_01"
+
+autonomous_plc_overrides:
+  DRIVER_TELEPHONY_SF:
+    trigger_condition: "DISCONNECTED_2600HZ_SF"
+    actions:
+      - vendor: "UNISYS_TERMINAL_GATEWAY"
+        protocol: "VIRTUAL_SWITCH_LINK"
+        target_register: "ALL_ACTIVE_NODES"
+        override_hex_vector: "FF00FF00"
+        label: "TERMINAL_SAFE_MODE_LOCK"
+        description: "Forcibly drop routing links and isolate active Unisys virtual Mac bridges"
+
+
 routing_matrix:
   source_node: "0x00FF"
   mirror_targets:
