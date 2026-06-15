@@ -146,7 +146,6 @@ def inline_multicore_hex_decode(raw_hex_string: str) -> str:
 # ------------------------------------------------------------------------------
 @njit(cache=True, fastmath=True)
 def compute_goertzel_magnitude_2600hz(sample_buffer: np.ndarray, sampling_rate_hz: float) -> float:
-    """Calculates relative spectral power magnitude precisely at 2600 Hz using custom non-linear discrete filters."""
     total_samples = sample_buffer.shape[0]
     target_freq = 2600.0
     scaling_coefficient = 2.0 * math.cos((2.0 * math.pi * target_freq) / sampling_rate_hz)
@@ -467,10 +466,7 @@ def execute_sf_trunk_plc_overrides(config_data: Dict[str, Any], visio_csv: Path,
         
         print(f"    -> [DISPATCH SUCCESS] Forced {vendor} Injection to Register {target_reg} | Payload: {payload_hex} ({label})")
         
-        # 1. Manifest the active variable metrics onto your KVM GUI terminal layout map
         update_kvm_json_state(kvm_json, f"PLC_{vendor}_OVERRIDE_STATUS", f"EXECUTED_{label}", "TELEPHONY_2600HZ_INTERCEPTOR")
-        
-        # 2. Append immutable chronological flowchart lines to your Visio audit spreadsheet files
         epoch_stamp = int(time.time())
         node_id = f"PLC_OVERRIDE_{epoch_stamp}_{vendor}"
         desc = f"In-band 2600 Hz drop forced autonomous protective override handshake {payload_hex} to {vendor} slot {target_reg}."
@@ -497,23 +493,42 @@ def evaluate_telegraphic_overrides(resolved_char: str, config_data: Dict[str, An
         desc = f"Telegraph interceptor forced autonomic handshake {reply_hex} to {target_plc} on keyword match."
         append_event_to_visio_csv(visio_csv, node_id, label, desc, "PLC_OVERRIDE", "TACTICAL_HANDSHAKE", "WIRELESS_MESH", "0x0014", "DRIVER_TELEGRAPH_POLICING", "CRITICAL_TRAP_ENGAGED", "Red")
 
-def purge_stale_hardware_channels(latency_timeout_seconds: float, visio_csv: Path) -> None:
-    global _active_serial_handles, _last_channel_activity_timestamps
+def purge_stale_hardware_channels(latency_timeout_seconds: float, visio_csv: Path, kvm_json: Path) -> None:
+    """Flushes out silent, dead, or disconnected physical interface ports to minimize loop cycle latency in heavy noise fields."""
+    global _active_serial_handles, _last_channel_activity_timestamps, _cached_fingerprints
     current_time = time.time()
-    for hex_addr, last_active in list(_last_channel_activity_timestamps.items()):
-        if (current_time - last_active) <= latency_timeout_seconds:
+    
+    for hex_addr, last_active_timestamp in list(_last_channel_activity_timestamps.items()):
+        if (current_time - last_active_timestamp) <= latency_timeout_seconds:
             continue
+            
+        # Target node has crossed the maximum permissible latency threshold window
         if hex_addr not in _active_serial_handles:
             continue
+            
         try:
-            print(f"[PURGE ENGINE] Channel {hex_addr} exceeded silent limit window. Closing port connection.")
+            print(f"[LATENCY PURGE] Channel {hex_addr} exceeded silent limit window. Closing connection to prevent cycle lag.")
             _active_serial_handles[hex_addr].close()
         except Exception:
-            pass
+            pass # Suppress background errors if the physical connection is already broken
+            
+        # Extract metadata metrics for chronological logging before erasing memory states
+        stale_driver = _cached_fingerprints.get(hex_addr, "DRIVER_UNKNOWN_GENERIC_SERIAL")
         epoch_stamp = int(time.time())
-        node_id = f"CHANNEL_PURGE_{epoch_stamp}_{hex_addr}"
-        desc = f"Channel {hex_addr} closed due to silent timeout window breach of {latency_timeout_seconds}s."
-        append_event_to_visio_csv(visio_csv, node_id, f"Purged_{hex_addr}", desc, "FABRIC_PROTECTION", "DISCONNECTED_PORT", "SERIAL", hex_addr, "NONE", "WARNING", "Orange")
+        node_id = f"CHANNEL_FLUSH_{epoch_stamp}_{hex_addr}"
+        desc = f"Forcibly disconnected line {hex_addr} after {latency_timeout_seconds}s of silence to optimize scanner throughput."
+        
+        # 1. Update the Microsoft Visio Data Visualizer spreadsheet log dynamically with orange warning indicators
+        append_event_to_visio_csv(
+            visio_csv, node_id, f"Purged_{hex_addr}", desc, 
+            "FABRIC_PROTECTION", "DISCONNECTED_PORT", "SERIAL_WIRE", 
+            hex_addr, stale_driver, "CHANNEL_OFFLINE", "Orange"
+        )
+        
+        # 2. Synchronize active state variables inside your Univac_Sperry_KVM_GUI layout matrix
+        update_kvm_json_state(kvm_json, f"PLC_{hex_addr}_STATUS", "OFFLINE_PURGED", "AUTONOMIC_LATENCY_ENGINE")
+        
+        # 3. Cleanly unmount references from runtime dictionary caches to reduce loop calculation strains
         del _active_serial_handles[hex_addr]
         del _last_channel_activity_timestamps[hex_addr]
 
@@ -619,7 +634,7 @@ def listen_ports_command(
 
     try:
         while True:
-            purge_stale_hardware_channels(purge_timeout, visio_csv)
+            purge_stale_hardware_channels(purge_timeout, visio_csv, kvm_json)
             try:
                 client_sock, _ = server_socket.accept()
                 client_sock.settimeout(0.1)
@@ -652,13 +667,14 @@ def listen_ports_command(
 def listen_server_command(
     config: Path = typer.Option(Path("config.yaml"), help="Path to the master system configuration profile."),
     visio_csv: Path = typer.Option(Path("visio_mapping.csv"), help="The target data visualizer audit log destination."),
+    kvm_json: Path = typer.Option(Path("gui_state.json"), help="The active KVM GUI panel configuration json path."),
     purge_timeout: float = typer.Option(5.0, help="The latency threshold boundary limit count in seconds before stale lines are dropped.")
 ):
     print(f"\n[SERVER] Launching multi-media infrastructure core on background channels...")
     parallel_cpu_decode_morse_matrix(np.array([12]), np.array([2]))
     try:
         while True:
-            purge_stale_hardware_channels(purge_timeout, visio_csv)
+            purge_stale_hardware_channels(purge_timeout, visio_csv, kvm_json)
             time.sleep(0.1)
     except KeyboardInterrupt:
         print("\n[SERVER INTERRUPT] Halting background processes cleanly.")
@@ -671,7 +687,6 @@ def analyze_trunk_signal_command(
     visio_csv: Path = typer.Option(Path("visio_mapping.csv"), help="The target data visualizer spreadsheet file path destination."),
     kvm_json: Path = typer.Option(Path("gui_state.json"), help="The active operator dashboard interface layout json configuration target.")
 ):
-    """Parses audio blocks for long-distance 2600 Hz SF disconnect tones, automatically triggering Allen-Bradley and Siemens overrides on detection."""
     config_data = load_system_config(config)
     policing_rules = config_data.get("sf_trunk_policing", {})
     magnitude_threshold = policing_rules.get("power_magnitude_floor", 15.0)
