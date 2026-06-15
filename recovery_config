@@ -448,3 +448,40 @@ status: "ACTIVE"
     hex_address: "0x00FF"
     target_module: "aegis-bridge"
     status: "ACTIVE" [1]
+carrier_telemetry:
+  frequency_matrices:
+    - classification: "DTMF_DIAL_UP"
+      low_group_hz: [697, 770, 852, 941]
+      high_group_hz: [1209, 1336, 1477, 1633]
+      min_twist_db: -8.0
+      max_twist_db: 4.0
+    - classification: "TELEGRAPH_MORSE_TONE"
+      center_frequency_hz: 800
+      dit_length_ms: 60
+      dah_length_ms: 180
+      inter_element_gap_ms: 60
+physical_media_specs:
+  broadband:
+    types: ["DSL", "ADSL", "ADSL2+", "VDSL", "VDSL2"]
+    vectoring_cross_talk_cancellation: true
+    snr_margin_floor_db: 6.0
+  copper_ethernet:
+    supported_cables: ["CAT5e", "CAT6", "CAT6A", "CAT7", "CAT8", "CAT_NEXT_GEN"]
+    max_packet_size_bytes: 9000 # Jumbo Frames Allocation
+    auto_negotiation_speed_mbps: [10, 100, 1000, 10000, 25000, 40000, 100000]
+
+vendor_connectors:
+  oracle:
+    driver: "oracle.jdbc.OracleDriver"
+    pooling_max_active: 128
+    failover_nodes: ["10.0.9.11", "10.0.9.12"]
+  ibm_db2:
+    sub_system: "HOST_EBCDIC_STORAGE_MATRIX"
+    transaction_isolation_level: "CURSOR_STABILITY"
+  allen_bradley:
+    protocol: "EtherNet/IP"
+    cip_routing_path: "1,0"
+    tag_tracking_registers: ["0x00A1", "0x00B2", "0x00C3"]
+  hbe:
+    integration_mode: "OPC_UA_PROXY"
+    heartbeat_timeout_ms: 500
