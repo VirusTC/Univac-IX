@@ -42,10 +42,16 @@ _ANNUAL_RETAINER_USD: float = 4500000.0
 _SLA_CREDIT_RATE_PER_HOUR: float = _ANNUAL_RETAINER_USD * 0.10
 _SLA_WINDOW_SECONDS: float = 600.0
 
+_INTELLIGENCE_PATTERNS: Dict[str, str] = {
+    "FINANCIAL_ROUTING": r"(?:ACCOUNT|IBAN|BANK|ROUTE|SWIFT)[\s\:\-\=]*([A-Z0-9]{8,24})",
+    "SYSTEM_AUTHENTICATION": r"(?:PASS|PASSWORD|PWD|SECRET|KEY|TOKEN)[\s\:\-\=]*([a-zA-Z0-9\!\@\#\$\%\^\&\*]{6,32})",
+    "TACTICAL_NAVIGATION": r"(?:LAT|LON|COORD|WAYPOINT|NAV)[\s\:\-\=]*([\d\.\-\u00B0\'\"]{4,18}\s*[NSEW]?)"
+}
+
 # ------------------------------------------------------------------------------
 # MULTICORE HEX-TO-TEXT ACCELERATION
 # ------------------------------------------------------------------------------
-@njit(parallel=True)  # Activating Numba JIT for true multicore acceleration
+@njit(parallel=True)
 def parallel_cpu_hex_to_text_matrix(hex_array: np.ndarray, hex_lengths: np.ndarray) -> np.ndarray:
     total_lines = hex_array.shape[0]
     max_hex_len = hex_array.shape[1]
@@ -79,62 +85,73 @@ def inline_multicore_hex_decode(raw_hex_string: str) -> str:
         
     hex_matrix = np.zeros((1, hex_len), dtype=np.uint8)
     line_lengths = np.array([hex_len], dtype=np.int32)
-    
-    # Cast characters to ASCII integer representations for the Numba JIT compiler
     hex_matrix[0, :hex_len] = list(clean_hex.encode("ascii"))
     
     raw_text_matrix = parallel_cpu_hex_to_text_matrix(hex_matrix, line_lengths)
     return bytes(raw_text_matrix[0, :hex_len // 2]).decode("utf-8", errors="ignore")
 
 # ------------------------------------------------------------------------------
-# SLA ACCOUNTING & SAFETY INTERLOCKS
+# DATA RECOVERY LOGGERS & RADIO MESH
 # ------------------------------------------------------------------------------
-def calculate_and_log_sla_credits(channel_addr: str, visio_csv: Path) -> None:
-    """Computes downstream system credit deductions if tactical interventions pass the 10-minute threshold."""
-    if channel_addr not in _active_sla_breach_timers:
+def log_intelligence_hit_to_visio(pattern_type: str, exact_match: str, line_number: int, target_csv: Path) -> None:
+    if not target_csv.exists():
         return
-        
-    start_time = _active_sla_breach_timers[channel_addr]
-    elapsed_seconds = time.time() - start_time
-    
-    if elapsed_seconds <= _SLA_WINDOW_SECONDS:
-        # print(f"  [SLA WITHIN BOUNDS] Interventions active. Time elapsed: {elapsed_seconds:.2f}s / {_SLA_WINDOW_SECONDS}s.")
-        return
-        
-    breach_overtime_seconds = elapsed_seconds - _SLA_WINDOW_SECONDS
-    overtime_hours = breach_overtime_seconds / 3600.0
-    accrued_penalty_usd = overtime_hours * _SLA_CREDIT_RATE_PER_HOUR
-    
-    print(f"  [SLA BREACH ALERT] Intervention windows breached by {breach_overtime_seconds:.2f} seconds!")
-    print(f"  [FINANCIAL RETENTION] Accruing sovereign compensation credits: ${accrued_penalty_usd:.2f} USD.")
-    
-    if not visio_csv.exists():
-        return
-        
     epoch_stamp = int(time.time())
-    node_id = f"SLA_PENALTY_{epoch_stamp}_{channel_addr}"
-    node_name = f"SLA_Credit_{channel_addr}"
-    node_desc = f"Intervention overtime: {breach_overtime_seconds:.1f}s. Liquidated credit owed: ${accrued_penalty_usd:.2f} USD."
-    
-    log_line = f'{node_id},{node_name},"{node_desc}",,,SLA_ACCOUNTING,FINANCIAL_LEDGER,{channel_addr.lower()},DRIVER_SLA_TRACKER,LIQUIDATION_ISSUED,CRITICAL_TRAP_ENGAGED,DarkRed,NONE\n'
-    
+    node_id = f"INTEL_HIT_{epoch_stamp}_{line_number}"
+    timestamp = time.strftime("%H:%M:%S")
+    node_name = f"Intel_Found_{timestamp}"
+    node_desc = f"Isolated {pattern_type} validation token: {exact_match} at line {line_number}"
+    log_line = f'{node_id},{node_name},"{node_desc}",,,INTEL_TRAP,RECOVERY_LOG,0x00E9,DRIVER_PATTERN_RECON,DATA_ISOLATED,HIGH_PRIORITY,Orange,NONE\n'
     try:
-        with open(visio_csv, "a", encoding="utf-8") as ledger:
+        with open(target_csv, "a", encoding="utf-8") as ledger:
             ledger.write(log_line)
     except Exception:
         pass
 
-def track_and_initialize_sla_timer(channel_addr: str) -> None:
-    """Secures structural microsecond stopwatch stamps the instant an emergency condition trips."""
-    if channel_addr in _active_sla_breach_timers:
+def broadcast_intel_over_radio(pattern_type: str, exact_match: str) -> None:
+    radio_tx_addr = "0x0014"
+    if radio_tx_addr not in _active_serial_handles:
         return
+    timestamp = time.strftime("%H:%M:%S")
+    radio_msg = f"[UNIVAC-INTEL] {timestamp} | MATCH:{pattern_type} | ADDR:{exact_match[:12]}... // SECURE_RELAY"
+    hex_payload = radio_msg.encode("utf-8").hex().upper()
+    raw_packet_bytes = bytes.fromhex(hex_payload)
+    try:
+        _active_serial_handles[radio_tx_addr].write(raw_packet_bytes)
+    except Exception:
+        pass
+
+# ------------------------------------------------------------------------------
+# COMMAND 1: THE NETWORK PORT LISTENER (SLA ACCOUNTING)
+# ------------------------------------------------------------------------------
+def calculate_and_log_sla_credits(channel_addr: str, visio_csv: Path) -> None:
+    if channel_addr not in _active_sla_breach_timers: return
+    start_time = _active_sla_breach_timers[channel_addr]
+    elapsed_seconds = time.time() - start_time
+    if elapsed_seconds <= _SLA_WINDOW_SECONDS: return
+    breach_overtime_seconds = elapsed_seconds - _SLA_WINDOW_SECONDS
+    overtime_hours = breach_overtime_seconds / 3600.0
+    accrued_penalty_usd = overtime_hours * _SLA_CREDIT_RATE_PER_HOUR
+    print(f"  [SLA BREACH ALERT] Intervention windows breached by {breach_overtime_seconds:.2f} seconds!")
+    print(f"  [FINANCIAL RETENTION] Accruing sovereign compensation credits: ${accrued_penalty_usd:.2f} USD.")
+    if not visio_csv.exists(): return
+    epoch_stamp = int(time.time())
+    node_id = f"SLA_PENALTY_{epoch_stamp}_{channel_addr}"
+    node_name = f"SLA_Credit_{channel_addr}"
+    node_desc = f"Intervention overtime: {breach_overtime_seconds:.1f}s. Liquidated credit owed: ${accrued_penalty_usd:.2f} USD."
+    log_line = f'{node_id},{node_name},"{node_desc}",,,SLA_ACCOUNTING,FINANCIAL_LEDGER,{channel_addr.lower()},DRIVER_SLA_TRACKER,LIQUIDATION_ISSUED,CRITICAL_TRAP_ENGAGED,DarkRed,NONE\n'
+    try:
+        with open(visio_csv, "a", encoding="utf-8") as ledger:
+            ledger.write(log_line)
+    except Exception: pass
+
+def track_and_initialize_sla_timer(channel_addr: str) -> None:
+    if channel_addr in _active_sla_breach_timers: return
     _active_sla_breach_timers[channel_addr] = time.time()
     print(f"  [SLA INCEPTION REGISTERED] Core tactical clock armed for channel {channel_addr}. 10-Minute intervention window active.")
 
 def clear_sla_timer(channel_addr: str) -> None:
-    """Erases the live ticking clock once an automated hardware handshake restores the baseline parameters."""
-    if channel_addr not in _active_sla_breach_timers:
-        return
+    if channel_addr not in _active_sla_breach_timers: return
     del _active_sla_breach_timers[channel_addr]
     print(f"  [SLA RESOLVED] Target channel {channel_addr} returned to nominal state. Intercept stopwatch disarmed safely.")
 
@@ -143,34 +160,25 @@ def dispatch_emergency_radio_broadcast(hex_address: str, violation_type: str, th
     if radio_tx_addr not in _active_serial_handles:
         print(f"  [RADIO MESH DEFERRED] Cannot broadcast alert. Radio transceiver line {radio_tx_addr} offline.", file=sys.stderr)
         return
-        
     timestamp = time.strftime("%H:%M:%S")
     radio_message = f"[UNIVAC-BREACH] {timestamp} | CH:{hex_address} | TYPE:{violation_type} | LIMIT:{threshold_val} | VAL:{current_val} // EVAC_ERR"
-    
     hex_payload = radio_message.encode("utf-8").hex().upper()
     raw_packet_bytes = bytes.fromhex(hex_payload)
-    
     try:
         _active_serial_handles[radio_tx_addr].write(raw_packet_bytes)
         print(f"  [RADIO MESH BROADCAST] Transmitting telemetry payload string to field pager matrix loops.")
-    except Exception:
-        pass
+    except Exception: pass
 
 def verify_live_sensor_safety_compliance(hex_address: str, raw_payload_bytes: bytes, visio_csv: Path) -> None:
     clean_addr = hex_address.strip().lower()
-    if clean_addr not in _safety_threshold_registers:
-        return
-    if len(raw_payload_bytes) == 0:
-        return
-        
+    if clean_addr not in _safety_threshold_registers: return
+    if len(raw_payload_bytes) == 0: return
     measured_integer_value = int(raw_payload_bytes[-1])
     bounds = _safety_threshold_registers[clean_addr]
     max_boundary = bounds.get("upper_limit", 255)
     min_boundary = bounds.get("lower_limit", 0)
-    
     if measured_integer_value > max_boundary:
-        sys.stdout.write("\a\a\a")
-        sys.stdout.flush()
+        sys.stdout.write("\a\a\a"); sys.stdout.flush()
         print("\n" + "!" * 80)
         print(f" !!! CRITICAL PACKET COMPLIANCE BREACH: UPPER SAFETY BOUNDS EXCEEDED !!!")
         print(f" -> INCOMING ROUTE CHANNEL: {clean_addr} | Real-Time Value: {measured_integer_value} (MAX: {max_boundary})")
@@ -179,10 +187,8 @@ def verify_live_sensor_safety_compliance(hex_address: str, raw_payload_bytes: by
         calculate_and_log_sla_credits(clean_addr, visio_csv)
         dispatch_emergency_radio_broadcast(clean_addr, "MAX_EXCEEDED", max_boundary, measured_integer_value)
         return
-        
     if measured_integer_value < min_boundary:
-        sys.stdout.write("\a\a\a")
-        sys.stdout.flush()
+        sys.stdout.write("\a\a\a"); sys.stdout.flush()
         print("\n" + "!" * 80)
         print(f" !!! CRITICAL PACKET COMPLIANCE BREACH: LOWER SAFETY BOUNDS EXCEEDED !!!")
         print(f" -> INCOMING ROUTE CHANNEL: {clean_addr} | Real-Time Value: {measured_integer_value} (MIN: {min_boundary})")
@@ -191,22 +197,17 @@ def verify_live_sensor_safety_compliance(hex_address: str, raw_payload_bytes: by
         calculate_and_log_sla_credits(clean_addr, visio_csv)
         dispatch_emergency_radio_broadcast(clean_addr, "MIN_EXCEEDED", min_boundary, measured_integer_value)
         return
-        
     clear_sla_timer(clean_addr)
 
 def execute_matrix_mirror_routing(source_addr: str, raw_payload: bytes, config_data: Dict[str, Any]) -> None:
     routing_rule = config_data.get("routing_matrix", {})
-    if routing_rule.get("source_node", "").lower() != source_addr.lower():
-        return
+    if routing_rule.get("source_node", "").lower() != source_addr.lower(): return
     targets = routing_rule.get("mirror_targets", [])
     for target in targets:
         target_addr = target.get("address", "").lower()
-        if target_addr not in _active_serial_handles:
-            continue
-        try:
-            _active_serial_handles[target_addr].write(raw_payload)
-        except Exception:
-            pass
+        if target_addr not in _active_serial_handles: continue
+        try: _active_serial_handles[target_addr].write(raw_payload)
+        except Exception: pass
 
 def process_incoming_stream(hex_address: str, raw_payload: bytes, config_data: Dict[str, Any], target_csv: Path) -> None:
     clean_addr = hex_address.strip().lower()
@@ -216,56 +217,40 @@ def process_incoming_stream(hex_address: str, raw_payload: bytes, config_data: D
     decoded_readable_text = inline_multicore_hex_decode(hex_payload_str)
     print(f"  [CORE PROCESSING RUNTIME] Address: {clean_addr} | Hex: {hex_payload_str} | Ascii: {decoded_readable_text}")
 
-# ------------------------------------------------------------------------------
-# COMMAND 1: THE NETWORK PORT LISTENER (SLA ACCOUNTING)
-# ------------------------------------------------------------------------------
 @app.command(name="listen-ports")
 def listen_ports_command(
     config: Path = typer.Option(Path("config.yaml"), help="Path to the master system topology file registry configuration."),
     visio_csv: Path = typer.Option(Path("visio_mapping.csv"), help="The target Data Visualizer file layout matching the audit matrix."),
     network_port: int = typer.Option(8080, help="Local network socket port capturing virtual fiber lines.")
 ):
-    """Binds to live multi-channel interface loops while concurrently executing automated SLA stopwatch tracking."""
     global _active_serial_handles
-    
     if not config.exists():
         print(f"Configuration Fault: Path {config} not found.", file=sys.stderr)
         raise typer.Exit(code=1)
-        
     with open(config, "r") as f:
         config_data = yaml.safe_load(f)
-        
     print(f"\n======================================================================")
     print(f"SLA ACCOUNTING & AUTONOMIC CORE FABRIC ONLINE: {config_data.get('system', {}).get('identity', 'UNIVAC-CORE')}")
     print(f"======================================================================")
-    
-    # Run a test cycle to JIT-compile the numba function before real-time operations
     inline_multicore_hex_decode("414243")
-    
     if "0x0014" not in _active_serial_handles:
         class DummySerial:
             def write(self, data): pass
         _active_serial_handles["0x0014"] = DummySerial()
-        
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    
-    # REPAIRED INDENTATION BLOCK START
     server_socket.bind(("0.0.0.0", network_port))
     server_socket.listen(10)
     server_socket.setblocking(False)
 
     for node in config_data.get("nodes", []):
         port_path = node.get("port", "")
-        if not port_path.startswith("/dev/"):
-            continue
-        if not serial:
-            continue
+        if not port_path.startswith("/dev/"): continue
+        if not serial: continue
         try:
             ser = serial.Serial(port_path, baudrate=115200, timeout=0.01)
             _active_serial_handles[node.get("hex_address", "").lower()] = ser
-        except Exception:
-            pass
+        except Exception: pass
 
     print(f"[LIVE ENGINE] Port listeners activated. Financial SLA monitors armed and counting. (Ctrl+C to disarm)\n")
 
@@ -281,30 +266,24 @@ def listen_ports_command(
                         addr, data_hex = payload_str.split(":", 1)
                         process_incoming_stream(addr.strip().lower(), bytes.fromhex(data_hex.strip()), config_data, visio_csv)
                 client_sock.close()
-            except BlockingIOError:
-                pass
-            except Exception:
-                pass
+            except BlockingIOError: pass
+            except Exception: pass
 
             for hex_addr, serial_conn in list(_active_serial_handles.items()):
-                if hex_addr == "0x0014":
-                    continue
-                if not serial_conn.in_waiting:
-                    continue
+                if hex_addr == "0x0014": continue
+                if not serial_conn.in_waiting: continue
                 raw_bytes = serial_conn.read(serial_conn.in_waiting)
                 if raw_bytes:
                     process_incoming_stream(hex_addr, raw_bytes, config_data, visio_csv)
 
             for running_breach_addr in list(_active_sla_breach_timers.keys()):
                 calculate_and_log_sla_credits(running_breach_addr, visio_csv)
-
             time.sleep(0.01)
 
     except KeyboardInterrupt:
         print("\n[SHUTDOWN] Exiting tactical diagnostic network daemon safely. Financial ledgers saved.")
         server_socket.close()
         raise typer.Exit(code=0)
-    # REPAIRED INDENTATION BLOCK END
 
 # ------------------------------------------------------------------------------
 # COMMAND 2: MANUAL ROUTE INJECTION
@@ -316,21 +295,18 @@ def route_signal_command(
     config: Path = typer.Option(Path("config.yaml"), help="Path to the node configuration registry file."),
     visio_csv: Path = typer.Option(Path("visio_mapping.csv"), help="The target data visualizer spreadsheet to write audits to.")
 ):
-    """Manually routes an input frame payload to verify compliance and track real-time SLA penalty ticks."""
     global _active_serial_handles
     with open(config, "r") as f:
         config_data = yaml.safe_load(f)
-        
     if "0x0014" not in _active_serial_handles:
         class DummySerial:
             def write(self, data): pass
         _active_serial_handles["0x0014"] = DummySerial()
-        
     raw_data = bytes.fromhex(payload.strip().upper())
     process_incoming_stream(hex_address, raw_data, config_data, visio_csv)
 
 # ------------------------------------------------------------------------------
-# COMMAND 3: QUANTUM BRIDGE ASYNC LOOP (From Previous Iteration)
+# COMMAND 3: QUANTUM BRIDGE ASYNC LOOP
 # ------------------------------------------------------------------------------
 class UnivacIXQuantumBridge:
     def __init__(self):
@@ -400,6 +376,88 @@ def quantum_bridge_command():
         asyncio.run(_run_quantum_bridge_async())
     except KeyboardInterrupt:
         print("\n[SHUTDOWN] Intercepted manual shutdown.")
+
+# ------------------------------------------------------------------------------
+# COMMAND 4: RECOVERED DATA INTEL SCANNER & KVM INJECTOR (NEW)
+# ------------------------------------------------------------------------------
+@app.command(name="scan-recovered-data")
+def scan_recovered_data_command(
+    target_file: Path = typer.Argument(..., help="Path to the recovered plaintext text asset to sweep for patterns."),
+    kvm_gui_config: Path = typer.Argument(..., help="Path to your active Univac_Sperry_KVM_GUI layout state file (e.g., gui_state.json)."),
+    visio_csv: Path = typer.Option(Path("visio_mapping.csv"), help="The target Data Visualizer flowchart file to register hits into.")
+):
+    """Sweeps decrypted text dumps for strategic intelligence and automatically injects multi-line token lists directly into KVM JSON files."""
+    if not target_file.exists():
+        print(f"[RECON FAULT] Plaintext target asset file missing at path: '{target_file}'", file=sys.stderr)
+        raise typer.Exit(code=1)
+        
+    print(f"\n======================================================================")
+    print(f"AUTOMATED MULTI-LINE INJECTION ENGINE // TARGET ASSET: {target_file.name}")
+    print(f"======================================================================")
+    print("[RECON] Arming intelligence regular expression traps across data sectors...")
+    
+    with open(target_file, "r", encoding="utf-8", errors="ignore") as f:
+        file_lines = f.readlines()
+        
+    current_gui_state: Dict[str, Any] = {}
+    if kvm_gui_config.exists():
+        try:
+            with open(kvm_gui_config, "r", encoding="utf-8") as stream:
+                current_gui_state = json.load(stream)
+        except Exception:
+            pass
+            
+    if "live_dashboard_vars" not in current_gui_state:
+        current_gui_state["live_dashboard_vars"] = {}
+        
+    total_matches_injected = 0
+    
+    for line_idx, line_content in enumerate(file_lines):
+        clean_line = line_content.strip()
+        if not clean_line:
+            continue
+            
+        for classification_tag, regex_pattern in _INTELLIGENCE_PATTERNS.items():
+            compiled_search = re.compile(regex_pattern, re.IGNORECASE)
+            found_match = compiled_search.search(clean_line)
+            if not found_match:
+                continue
+                
+            captured_token = found_match.group(1).strip()
+            total_matches_injected += 1
+            
+            # Generate a discrete unique variable key based on classification type and line offset numbers
+            kvm_variable_key = f"REC_{classification_tag}_L{line_idx + 1}"
+            
+            # Inject variable parameter blocks directly into the in-memory KVM config layer
+            current_gui_state["live_dashboard_vars"][kvm_variable_key] = {
+                "value": captured_token,
+                "source": f"RECOVERY_SCANNER_LINE_{line_idx + 1}",
+                "last_synchronized": time.strftime("%Y-%m-%d %H:%M:%S"),
+                "display_status": "RENDER_ACTIVE"
+            }
+            
+            sys.stdout.write("\a\a")
+            sys.stdout.flush()
+            print(f"  -> [MAPPED INTEL] Variable {kvm_variable_key} => '{captured_token}' staged for injection.")
+            
+            log_intelligence_hit_to_visio(classification_tag, captured_token, line_idx + 1, visio_csv)
+            broadcast_intel_over_radio(classification_tag, captured_token)
+
+    if total_matches_injected == 0:
+        print("\n[RECON STATUS] Scan completed. Plaintext contains zero flagged operational signatures.\n")
+        return
+        
+    try:
+        with open(kvm_gui_config, "w", encoding="utf-8") as target_out:
+            json.dump(current_gui_state, target_out, indent=2, ensure_ascii=False)
+    except Exception as io_err:
+        print(f"[KVM INJECTION FAULT] Failed to write automated multi-line list update to config file: {io_err}", file=sys.stderr)
+        raise typer.Exit(code=2)
+        
+    print(f"\n[INJECTION COMPLETE] Successfully parsed file and synchronized data matrices.")
+    print(f"  -> Total Multi-Line List Nodes Appended: {total_matches_injected}")
+    print(f"  -> Target KVM JSON Config Synchronized:   '{kvm_gui_config.name}'\n")
 
 # ------------------------------------------------------------------------------
 # ENTRY POINT
