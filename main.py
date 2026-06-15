@@ -11,12 +11,10 @@ try:
 except ImportError:
     serial = None
 
-app = typer.Typer(help="UNIVAC-IX Emergency Visio Mapping, Control & Operational Safety Core Fabric")
+app = typer.Typer(help="UNIVAC-IX Tactical Automation, Radio Alert Mesh & Safety Core Fabric")
 
-# Global handle storage for open serial hardware lines
 _active_serial_handles: Dict[str, Any] = {}
 
-# Global reference states matching runtime diagnostic memories
 _cached_fingerprints: Dict[str, str] = {
     "0x0011": "DRIVER_MIL_STD_1397_TACTICAL",
     "0x0012": "DRIVER_MIL_STD_1397_TACTICAL",
@@ -33,13 +31,43 @@ def load_system_config(config_path: Path) -> Dict[str, Any]:
     print(f"Configuration Fault: Path {config_path} not found.", file=sys.stderr)
     raise typer.Exit(code=1)
 
+
+# --- Automated Radio Messaging & SMS Trap Engine ---
+
+def dispatch_radio_alert_notice(node_id: str, channel_addr: str, rule_label: str, target_driver: str) -> None:
+    """Formats an emergency status update text string and transmits it over the air via physical radio port 20."""
+    radio_tx_addr = "0x0014" # Hardcoded to match PORT_20 RADIO_TRANS_TX allocation parameters
+    
+    # 1. Guard against inactive or missing physical radio hardware transmitters
+    if radio_tx_addr not in _active_serial_handles:
+        print(f"  [RADIO MESH DEFERRED] Cannot broadcast alert. Radio transmission line {radio_tx_addr} is offline.", file=sys.stderr)
+        return
+
+    # 2. Compile highly compact plain text update string suitable for field paging or SMS relay units
+    timestamp = time.strftime("%H:%M:%S")
+    alert_text = f"[UNIVAC-ALERT] {timestamp} | NODE:{node_id} | ADDR:{channel_addr} | DRV:{target_driver} | ACTION:{rule_label} // INJECT_OK"
+    
+    # 3. High-speed text-to-hex vector transformation sequence
+    hex_payload = alert_text.encode("utf-8").hex().upper()
+    raw_packet_bytes = bytes.fromhex(hex_payload)
+    
+    try:
+        radio_channel = _active_serial_handles[radio_tx_addr]
+        radio_channel.write(raw_packet_bytes)
+        print(f"  [RADIO MESH BROADCAST] Dispatched emergency network tracking SMS notification over long-range line.")
+        print(f"    -> Raw Message Text: {alert_text}")
+    except Exception as tx_err:
+        print(f"  [RADIO MESH FAULT] Signal drop on transceiver channel: {tx_err}", file=sys.stderr)
+
+
+# --- Core Operational Infrastructure Functions ---
+
 def execute_direct_hardware_injection(hex_addr: str, reply_hex: str) -> None:
-    """Dispatches corrective recovery strings straight back into physical serial links."""
     clean_addr = hex_addr.strip().lower()
     raw_reply_bytes = bytes.fromhex(reply_hex.strip().upper())
     
     if clean_addr not in _active_serial_handles:
-        print(f"  [RECOVERY DELAY] Target line {clean_addr} is currently unmounted or running over raw virtual fiber socket loops.")
+        print(f"  [RECOVERY DELAY] Target line {clean_addr} is running over virtual host environments.")
         return
         
     try:
@@ -49,7 +77,7 @@ def execute_direct_hardware_injection(hex_addr: str, reply_hex: str) -> None:
         print(f"  [RECOVERY FAULT] Failed to write to serial wire line {clean_addr}: {e}", file=sys.stderr)
 
 
-# --- Commands Menu Hierarchy ---
+# --- Commands Menu Architecture Layout ---
 
 @app.command(name="export-visio")
 def export_visio_command(
@@ -123,7 +151,7 @@ def monitor_visio_hazards_command(
     target_csv: Path = typer.Option(Path("visio_mapping.csv"), help="The compiled data visualizer CSV sheet to poll for errors."),
     poll_gap: float = typer.Option(1.0, help="Scanning frequency window delay constraint in seconds.")
 ):
-    """Monitors architecture data sheets and executes immediate, automatic handshake mitigation overrides on critical targets."""
+    """Monitors architecture data sheets and executes immediate, automatic handshake overrides and radio tracking transmissions."""
     global _active_serial_handles
     if not target_csv.exists():
         print(f"[ALARM FABRIC FAULT] Cannot scan non-existent tracking sheet target: '{target_csv}'", file=sys.stderr)
@@ -133,11 +161,10 @@ def monitor_visio_hazards_command(
     handshake_rules = config_data.get("recovery_handshakes", {})
     
     print(f"\n======================================================================")
-    print(f"AUTONOMIC MITIGATION DEPLOYED: Active watch active for {target_csv}")
+    print(f"AUTONOMIC RADIO TRANSMIT MATRIX ONLINE: Monitoring {target_csv}")
     print(f"======================================================================")
-    print("[ALARM FABRIC] Tracking nodes and matching handshake overrides... (Ctrl+C to disarm)\n")
 
-    # Initialize physical serial interfaces mapped inside config definitions for write-back tracking
+    # Initialize physical serial interfaces including your dedicated Radio transmission hardware links
     for node in config_data.get("nodes", []):
         port_path = node.get("port", "")
         if not port_path.startswith("/dev/"):
@@ -178,45 +205,39 @@ def monitor_visio_hazards_command(
                 if len(columns) < 11:
                     continue
                     
-                node_id = columns[0]
-                node_name = columns[1]
-                hex_addr = columns[7].strip().lower()
-                assigned_driver = columns[8].strip()
+                node_id = columns
+                node_name = columns
+                hex_addr = columns.strip().lower()
+                assigned_driver = columns.strip()
                 
                 active_frame_criticals.append(node_id)
                 
                 if node_id in flagged_critical_nodes:
-                    continue # Threat already identified and processed on previous loop ticks
+                    continue
                     
-                # TRIGGER IMMEDIATE AUDIBLE ALARMS
                 sys.stdout.write("\a\a\a")
                 sys.stdout.flush()
                 
                 print("\n" + "!" * 80)
-                print(f" !!! EMERGENCY CRITICAL SEVERITY UNLOCKED !!!")
-                print(f" -> HAZARD NODE:     {node_name} [{node_id}]")
-                print(f" -> HARDWARE TARGET: {hex_addr} via driver {assigned_driver}")
+                print(f" !!! AUTOMATED COUNTER-MEASURE OVERRIDE ENGAGED !!!")
+                print(f" -> TARGET COMPONENT: {node_name} [{node_id}]")
                 print("!" * 80)
                 
-                # AUTOMATED REVERSE INJECTION HANDSHAKE INTERVENTION
                 driver_rules = handshake_rules.get(assigned_driver, {})
                 if not driver_rules:
-                    print(f"  [MITIGATION WAIVED] No recovery handshake payload maps registered for kernel driver: {assigned_driver}\n")
+                    print(f"  [MITIGATION WAIVED] No recovery maps present for: {assigned_driver}\n")
                     continue
                     
                 recovery_hex = driver_rules.get("reply_hex", "")
                 rule_label = driver_rules.get("label", "GENERIC_RESET")
-                
-                print(f"  [POLICING ACTION] Deploying rule counter-measure: {rule_label}")
-                execute_direct_hardware_injection(hex_addr, recovery_hex)
-                print()
-                
-            flagged_critical_nodes = active_frame_criticals
-
-    except KeyboardInterrupt:
-        print("\n[ALARM FABRIC] Disarming tactical warning systems and returning console context cleanly.")
-        raise typer.Exit(code=0)
-
-
-if __name__ == "__main__":
-    app()
+                # 1. Fire the corrective electrical pulse or fiber packet to fix the component
+execute_direct_hardware_injection(hex_addr, recovery_hex)
+# 2. IMMEDIATELY BROADCAST THE RADIO LOG TRANSFERS TO FIELD ENGINEER RECPTION UNITS
+dispatch_radio_alert_notice(node_id, hex_addr, rule_label, assigned_driver)
+print()
+flagged_critical_nodes = active_frame_criticals
+except KeyboardInterrupt:
+print("\n[ALARM FABRIC] Disarming tactical warning systems and shutting down radio frequencies.")
+raise typer.Exit(code=0)
+if name == "main":
+app()
