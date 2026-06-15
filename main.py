@@ -17,34 +17,7 @@ except ImportError:
 
 app = typer.Typer(help="Dynamic Plug-and-Play UNIVAC Mainframe Hardware Emulator Fabric")
 
-
-# --- High-Performance Parallel Computing Core (Cached & Vectorized) ---
-
-@njit(parallel=True, cache=True, fastmath=True)
-def parallel_cpu_text_to_hex_matrix(ascii_array: np.ndarray, line_lengths: np.ndarray) -> np.ndarray:
-    total_lines = ascii_array.shape[0]
-    max_len = ascii_array.shape[1]
-    hex_matrix = np.zeros((total_lines, max_len * 2), dtype=np.uint8)
-    
-    for i in prange(total_lines):
-        current_length = line_lengths[i]
-        for j in range(current_length):
-            val = ascii_array[i, j]
-            high_nibble = (val >> 4) & 0x0F
-            low_nibble = val & 0x0F
-            
-            high_char = high_nibble + 48
-            if high_nibble > 9:
-                high_char = high_nibble + 55
-                
-            low_char = low_nibble + 48
-            if low_nibble > 9:
-                low_char = low_nibble + 55
-                
-            hex_matrix[i, j * 2] = high_char
-            hex_matrix[i, (j * 2) + 1] = low_char
-            
-    return hex_matrix
+# --- High-Performance Parallel Computing Core ---
 
 @njit(parallel=True, cache=True, fastmath=True)
 def parallel_cpu_hex_to_text_matrix(hex_array: np.ndarray, hex_lengths: np.ndarray) -> np.ndarray:
@@ -72,34 +45,24 @@ def parallel_cpu_hex_to_text_matrix(hex_array: np.ndarray, hex_lengths: np.ndarr
             
     return ascii_matrix
 
-
-# --- High-Speed Real-time Decoding Helper Routine ---
-
 def inline_multicore_hex_decode(raw_hex_string: str) -> str:
-    """Invokes cached vector loops to instantaneously decode incoming network stream packages."""
     clean_hex = raw_hex_string.strip().upper()
     hex_len = len(clean_hex)
-    
     if hex_len == 0:
         return ""
     if hex_len % 2 != 0:
         return "[ERROR: ASYMMETRIC HEX STREAM]"
 
-    # Pack single message string data straight into vector matrices
     hex_matrix = np.zeros((1, hex_len), dtype=np.uint8)
     line_lengths = np.array([hex_len], dtype=np.int32)
     hex_matrix[0, :hex_len] = list(clean_hex.encode("ascii"))
     
-    # Process utilizing the parallel multicore CPU math pipeline layers
     raw_text_matrix = parallel_cpu_hex_to_text_matrix(hex_matrix, line_lengths)
-    
     valid_text_len = hex_len // 2
-    decoded_bytes = bytes(raw_text_matrix[0, :valid_text_len])
-    
-    return decoded_bytes.decode("utf-8", errors="ignore")
+    return bytes(raw_text_matrix[0, :valid_text_len]).decode("utf-8", errors="ignore")
 
 
-# --- System Validation Operations ---
+# --- Routing & Processing Layer ---
 
 def validate_word_alignment(bit_length: int) -> None:
     if bit_length == 36:
@@ -109,12 +72,6 @@ def validate_word_alignment(bit_length: int) -> None:
     if bit_length == 16:
         return
     print(f"Hardware Fault: Unsupported bit architecture {bit_length}.", file=sys.stderr)
-    raise typer.Exit(code=1)
-
-def convert_hex_stream(hex_payload: str) -> bytes:
-    if len(hex_payload) % 2 == 0:
-        return bytes.fromhex(hex_payload)
-    print("Signal Fault: Hexadecimal streams must be symmetric (even length).", file=sys.stderr)
     raise typer.Exit(code=1)
 
 def load_system_config(config_path: Path) -> Dict[str, Any]:
@@ -130,107 +87,107 @@ def process_incoming_stream(hex_address: str, raw_payload: bytes, config_data: D
     
     system_word_size = config_data.get("system", {}).get("default_word_size", 36)
     validate_word_alignment(system_word_size)
-
-    # Perform immediate automated reverse translation computation on the raw incoming packet block
+    
     decoded_readable_text = inline_multicore_hex_decode(hex_payload_str)
 
     for node in config_data.get("nodes", []):
         if node.get("hex_address", "").lower() != clean_addr:
             continue
         if node.get("status") != "ACTIVE":
-            print(f"[PORT IO] Incoming on standby node {node.get('id')} rejected.", file=sys.stderr)
             return
             
+        # Differentiate routing notices based on interface hardware medium
+        media_prefix = "[PORT SCANNED SERIAL]"
+        if node.get("type") == "FIBER_OPTIC":
+            media_prefix = "[HIGH-SPEED FIBER TRUNK]"
+
         match node.get("target_module"):
             case "aegis-bridge":
-                print(f"[HW -> AEGIS] Node: {node['name']} | Addr: {clean_addr}")
-                print(f"  -> Raw Stream:    {hex_payload_str}")
-                print(f"  -> Decoded Plain: {decoded_readable_text}")
+                print(f"{media_prefix} Node: {node['name']} (Addr: {clean_addr}) -> Decoded: {decoded_readable_text}")
                 return
             case "aviation-knowledge":
-                print(f"[HW -> AVIATION] Telemetry Signal Input Captured.")
-                print(f"  -> Decoded Plain: {decoded_readable_text}")
+                print(f"{media_prefix} Telemetry Input -> Decoded: {decoded_readable_text}")
                 return
             case "safety-monitor":
-                print(f"[HW -> SAFETY] Environment Sensory Update Captured.")
-                print(f"  -> Decoded Plain: {decoded_readable_text}")
+                print(f"{media_prefix} Sensory Update -> Decoded: {decoded_readable_text}")
                 return
             case "otis-gen360":
-                print(f"[HW -> OTIS] Structural data array shifted.")
-                print(f"  -> Decoded Plain: {decoded_readable_text}")
-                return
-            case "antigravity":
-                print(f"[HW -> ANTIGRAVITY] Processing vector updates.")
-                print(f"  -> Decoded Plain: {decoded_readable_text}")
+                print(f"{media_prefix} Structural Adjustment -> Decoded: {decoded_readable_text}")
                 return
             case _:
-                print(f"[PORT IO FAULT] Module route target '{node.get('target_module')}' unreachable.", file=sys.stderr)
+                print(f"[PORT IO FAULT] Destination module unrecognized.", file=sys.stderr)
                 return
 
-    print(f"[PORT IO WARNING] Data captured from unmapped link {hex_address} | Decoded: {decoded_readable_text}", file=sys.stderr)
 
-
-# --- Commands Entry Interfaces ---
-
-@app.command(name="route-signal")
-def route_signal_command(
-    hex_address: str = typer.Argument(..., help="Target device hexadecimal address."),
-    payload: str = typer.Argument(..., help="The hexadecimal input or output signal payload data."),
-    config: Path = typer.Option(Path("config.yaml"), help="Path to the node configuration registry file.")
-):
-    """Dynamically interfaces and maps I/O signals to attached repository software layers."""
-    config_data = load_system_config(config)
-    raw_data = convert_hex_stream(payload.strip().upper())
-    process_incoming_stream(hex_address, raw_data, config_data)
-
+# --- Core Command Interfaces ---
 
 @app.command(name="listen-ports")
 def listen_ports_command(
     config: Path = typer.Option(Path("config.yaml"), help="Path to the system topology file."),
-    network_port: int = typer.Option(8080, help="Local network port baseline bound for socket stream capture.")
+    baud_rate: int = typer.Option(115200, help="Baud speed parameter for converted legacy lines."),
+    network_port: int = typer.Option(8080, help="Network port simulating high-speed fiber data streams.")
 ):
-    """Binds live interface frameworks to process and decode incoming socket streams automatically."""
+    """Binds to all 55 legacy mapped serial vectors and high-speed fiber interfaces concurrently."""
     config_data = load_system_config(config)
-    print(f"[IO DAEMON] Initializing processing interface matrix on Core Network Port: {network_port}")
+    print(f"[IO DAEMON] Initializing Unified Mainframe I/O Fabrics...")
     
-    # Warm up parallel engine cache before initializing network layers
-    print("[IO DAEMON] Optimizing Numba parallel matrix compilation states...")
-    inline_multicore_hex_decode("414243")
-    print("[IO DAEMON] Compilation cache active. Full performance matrix ready.")
-
+    # Initialize Fiber Socket Framework
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server_socket.bind(("0.0.0.0", network_port))
-    server_socket.listen(5)
+    server_socket.listen(10)
     server_socket.setblocking(False)
     
-    print("[IO DAEMON] Auto-Decoding daemon network pipeline open. Listening... (Ctrl+C to halt)")
+    active_serial_handles: Dict[str, Any] = {}
+    
+    # Auto-detect and map all active entries out of the 55 possible channels
+    for node in config_data.get("nodes", []):
+        port_path = node.get("port", "")
+        if not port_path.startswith("/dev/"):
+            continue
+        if not serial:
+            continue
+            
+        try:
+            ser = serial.Serial(port_path, baudrate=baud_rate, timeout=0.01)
+            active_serial_handles[node.get("hex_address").lower()] = ser
+        except Exception:
+            pass # Suppress tracking error notifications if the target hardware pin is unplugged
+
+    print(f"[IO DAEMON] Multiplexer operational. Monitoring {len(active_serial_handles)}/55 legacy lines + Fiber Line. (Ctrl+C to halt)")
 
     try:
         while True:
+            # 1. Capture and process incoming packets from the High-Speed Fiber Pipe
             try:
-                client_sock, client_addr = server_socket.accept()
-                client_sock.settimeout(0.5)
-                raw_buffer = client_sock.recv(1024)
+                client_sock, _ = server_socket.accept()
+                client_sock.settimeout(0.1)
+                raw_buffer = client_sock.recv(4096)
                 if raw_buffer:
                     payload_str = raw_buffer.decode('utf-8').strip()
                     if ":" in payload_str:
                         addr, data_hex = payload_str.split(":", 1)
-                        converted_payload = bytes.fromhex(data_hex.strip())
-                        process_incoming_stream(addr, converted_payload, config_data)
+                        process_incoming_stream(addr, bytes.fromhex(data_hex.strip()), config_data)
                 client_sock.close()
             except BlockingIOError:
                 pass
             except Exception:
                 pass
 
-            time.sleep(0.01)
+            # 2. Sequential poll iteration through the 55 legacy serialized channels
+            for hex_addr, serial_conn in active_serial_handles.items():
+                if not serial_conn.in_waiting:
+                    continue
+                raw_bytes = serial_conn.read(serial_conn.in_waiting)
+                if raw_bytes:
+                    process_incoming_stream(hex_addr, raw_bytes, config_data)
+
+            time.sleep(0.005) # Optimized sleep boundary for maximum scanning throughput
 
     except KeyboardInterrupt:
-        print("\n[IO DAEMON] Closing system network components safely.")
+        print("\n[IO DAEMON] Safe shutdown sequence initiated. Disconnecting ports.")
         server_socket.close()
         raise typer.Exit(code=0)
-
 
 if __name__ == "__main__":
     app()
