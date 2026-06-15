@@ -25,7 +25,7 @@ try:
 except ImportError:
     serial = None
 
-app = typer.Typer(help="UNIVAC-IX Gateway Core, Multi-Media Telecommunications, & Autonomic PLC Recovery Fabric")
+app = typer.Typer(help="UNIVAC-IX Total Telecommunications, Autonomic Batch Gateway & Handshake Override Fabric")
 
 # ------------------------------------------------------------------------------
 # GLOBAL STATE & SLA REGISTERS
@@ -33,6 +33,7 @@ app = typer.Typer(help="UNIVAC-IX Gateway Core, Multi-Media Telecommunications, 
 _active_serial_handles: Dict[str, Any] = {}
 _last_client_socket: Optional[socket.socket] = None
 _last_channel_activity_timestamps: Dict[str, float] = {}
+_assigned_gateway_mac_cache: Dict[str, str] = {}
 
 _cached_fingerprints: Dict[str, str] = {
     "0x0013": "DRIVER_AVIATION_KNOWLEDGE",
@@ -50,8 +51,6 @@ _active_sla_breach_timers: Dict[str, float] = {}
 _ANNUAL_RETAINER_USD: float = 4500000.0
 _SLA_CREDIT_RATE_PER_HOUR: float = _ANNUAL_RETAINER_USD * 0.10
 _SLA_WINDOW_SECONDS: float = 600.0
-
-_assigned_gateway_mac_cache: Dict[str, str] = {}
 
 _INTELLIGENCE_PATTERNS: Dict[str, str] = {
     "FINANCIAL_ROUTING": r"(?:ACCOUNT|IBAN|BANK|ROUTE|SWIFT)[\s\:\-\=]*([A-Z0-9]{8,24})",
@@ -343,7 +342,6 @@ def compute_opto_analog_led_voltage(lux_intensity: float, sensor_gain_db: float)
 # ------------------------------------------------------------------------------
 @njit(cache=True, fastmath=True)
 def calculate_unisys_mac_offset(hardware_last_3_bytes: int, system_prefix_index: int) -> int:
-    """Computes a unique, unassigned Unisys MAC suffix array using bitwise scrambling polynomials to eliminate collisions."""
     scrambling_polynomial = 0xEDB88320
     intermediate_hash = hardware_last_3_bytes ^ scrambling_polynomial
     if system_prefix_index == 1:
@@ -352,7 +350,6 @@ def calculate_unisys_mac_offset(hardware_last_3_bytes: int, system_prefix_index:
 
 @njit(parallel=True, cache=True, fastmath=True)
 def parallel_cpu_generate_gateway_macs(hardware_bytes_array: np.ndarray, prefix_indices: np.ndarray) -> np.ndarray:
-    """Vectorizes massive batches of gateway MAC address translations simultaneously using all host CPU threads."""
     total_elements = hardware_bytes_array.shape[0]
     output_suffixes = np.zeros(total_elements, dtype=np.uint32)
     for i in prange(total_elements):
@@ -362,45 +359,78 @@ def parallel_cpu_generate_gateway_macs(hardware_bytes_array: np.ndarray, prefix_
 def register_device_to_unisys_gateway(hardware_mac: str, use_sperry_oui: bool, kvm_json: Path, visio_csv: Path) -> str:
     global _assigned_gateway_mac_cache
     clean_mac = hardware_mac.strip().replace("-", ":").lower()
-    
     if clean_mac in _assigned_gateway_mac_cache:
         return _assigned_gateway_mac_cache[clean_mac]
         
     mac_hex_clean = clean_mac.replace(":", "")
     if len(mac_hex_clean) != 12:
-        print(f"[GATEWAY FAULT] Malformed hardware MAC input tracking parameters: '{hardware_mac}'", file=sys.stderr)
         return "00:00:00:00:00:00"
         
     last_3_bytes_string = mac_hex_clean[6:]
     last_3_bytes_int = int(last_3_bytes_string, 16)
     
     prefix_index = 0
-    selected_oui = "00:10:fa" # Default to Unisys Reserved Mainframe IOC Block
-    
+    selected_oui = "00:10:fa"
     if use_sperry_oui:
         prefix_index = 1
-        selected_oui = "00:00:a2" # Swap to Sperry/UNIVAC Reserved Future Frame Block
+        selected_oui = "00:00:a2"
         
     input_vector = np.array([last_3_bytes_int], dtype=np.uint32)
     index_vector = np.array([prefix_index], dtype=np.int32)
-    
     suffix_output_vector = parallel_cpu_generate_gateway_macs(input_vector, index_vector)
     generated_suffix_int = suffix_output_vector[0]
     
     suffix_hex_string = hex(generated_suffix_int)[2:].zfill(6)
     formatted_suffix = f"{suffix_hex_string[0:2]}:{suffix_hex_string[2:4]}:{suffix_hex_string[4:6]}"
     assigned_unisys_mac = f"{selected_oui}:{formatted_suffix}".lower()
-    
     _assigned_gateway_mac_cache[clean_mac] = assigned_unisys_mac
-    print(f"[GATEWAY MOUNT] Device {clean_mac} verified. Assigned Unused Unisys Address Suffix Mapping: {assigned_unisys_mac}")
     
+    print(f"  [MOUNT SUCCESS] Hardware node: {clean_mac} -> Mapped Unisys Interface Slot: {assigned_unisys_mac}")
     update_kvm_json_state(kvm_json, f"GATEWAY_NODE_{mac_hex_clean}_MAC", assigned_unisys_mac, "AUTONOMIC_GATEWAY_OUI_MATRIX")
     epoch_stamp = int(time.time())
     node_id = f"GATEWAY_BIND_{epoch_stamp}_{mac_hex_clean}"
     desc = f"Gateway mapped physical device {clean_mac} into unassigned Unisys MAC slot {assigned_unisys_mac}."
     append_event_to_visio_csv(visio_csv, node_id, f"Gateway_{mac_hex_clean}", desc, "NETWORK_GATEWAY", "VIRTUAL_SWITCH_LINK", "ETHERNET", mac_hex_clean[-4:], "DRIVER_UNIVAC_GATEWAY", "INTERFACE_MOUNTED", "Purple")
-    
     return assigned_unisys_mac
+
+def force_terminal_gateway_safe_mode(kvm_json: Path, visio_csv: Path) -> None:
+    """Iterates through all newly assigned Unisys terminal lines and locks their layout states to safe-mode instantly."""
+    global _assigned_gateway_mac_cache
+    total_purged_nodes = len(_assigned_gateway_mac_cache)
+    if total_purged_nodes == 0:
+        return
+        
+    print(f"  [SLA ENFORCEMENT] In-band drop verified. Moving {total_purged_nodes} active terminal lines to secure safe-mode state...")
+    current_gui_state = {}
+    if kvm_json.exists():
+        try:
+            current_gui_state = json.load(open(kvm_json, "r", encoding="utf-8"))
+        except Exception:
+            pass
+            
+    if "live_dashboard_vars" not in current_gui_state:
+        current_gui_state["live_dashboard_vars"] = {}
+        
+    for hardware_mac, assigned_unisys_mac in _assigned_gateway_mac_cache.items():
+        mac_hex_clean = hardware_mac.replace(":", "")
+        key = f"GATEWAY_NODE_{mac_hex_clean}_MAC"
+        if key not in current_gui_state["live_dashboard_vars"]:
+            continue
+            
+        current_gui_state["live_dashboard_vars"][key]["value"] = f"{assigned_unisys_mac} [SAFE_MODE_LOCK]"
+        current_gui_state["live_dashboard_vars"][key]["display_status"] = "EMERGENCY_ISOLATED"
+        
+        epoch_stamp = int(time.time())
+        node_id = f"SAFE_LOCK_{epoch_stamp}_{mac_hex_clean}"
+        desc = f"Autonomic gateway forced terminal lane {assigned_unisys_mac} into SAFE_MODE_LOCK to eliminate network damage."
+        append_event_to_visio_csv(visio_csv, node_id, f"Lock_{mac_hex_clean}", desc, "TERMINAL_ISOLATION", "SECURED_PORT", "VIRTUAL_SWITCH", mac_hex_clean[-4:], "DRIVER_UNIVAC_GATEWAY", "CRITICAL_TRAP_ENGAGED", "Red")
+        
+    try:
+        with open(kvm_json, "w", encoding="utf-8") as target_out:
+            json.dump(current_gui_state, target_out, indent=2, ensure_ascii=False)
+        print("    -> [GATEWAY OVERRIDE COMPLETE] All Unisys virtual MAC allocations locked down safely.")
+    except Exception:
+        pass
 
 # ------------------------------------------------------------------------------
 # GENERIC KVM JSON STATE INJECTOR & VISIO AUDIT LOGGER
@@ -516,7 +546,6 @@ def verify_live_sensor_safety_compliance(hex_address: str, raw_payload_bytes: by
 # CORE DATA ROUTER & LATENCY MANAGER
 # ------------------------------------------------------------------------------
 def execute_sf_trunk_plc_overrides(config_data: Dict[str, Any], visio_csv: Path, kvm_json: Path) -> None:
-    """Intercepts the 2600 Hz tone detection state and automatically forces safety override handshakes down multi-vendor PLCs."""
     override_matrix = config_data.get("autonomous_plc_overrides", {}).get("DRIVER_TELEPHONY_SF", {})
     if not override_matrix:
         return
@@ -531,8 +560,8 @@ def execute_sf_trunk_plc_overrides(config_data: Dict[str, Any], visio_csv: Path,
         payload_hex = action.get("override_hex_vector", "0000")
         
         print(f"    -> [DISPATCH SUCCESS] Forced {vendor} Injection to Register {target_reg} | Payload: {payload_hex} ({label})")
-        
         update_kvm_json_state(kvm_json, f"PLC_{vendor}_OVERRIDE_STATUS", f"EXECUTED_{label}", "TELEPHONY_2600HZ_INTERCEPTOR")
+        
         epoch_stamp = int(time.time())
         node_id = f"PLC_OVERRIDE_{epoch_stamp}_{vendor}"
         desc = f"In-band 2600 Hz drop forced autonomous protective override handshake {payload_hex} to {vendor} slot {target_reg}."
@@ -560,7 +589,6 @@ def evaluate_telegraphic_overrides(resolved_char: str, config_data: Dict[str, An
         append_event_to_visio_csv(visio_csv, node_id, label, desc, "PLC_OVERRIDE", "TACTICAL_HANDSHAKE", "WIRELESS_MESH", "0x0014", "DRIVER_TELEGRAPH_POLICING", "CRITICAL_TRAP_ENGAGED", "Red")
 
 def purge_stale_hardware_channels(latency_timeout_seconds: float, visio_csv: Path, kvm_json: Path) -> None:
-    """Flushes out silent, dead, or disconnected physical interface ports to minimize loop cycle latency in heavy noise fields."""
     global _active_serial_handles, _last_channel_activity_timestamps, _cached_fingerprints
     current_time = time.time()
     
@@ -709,6 +737,43 @@ def load_system_config(config_path: Path) -> Dict[str, Any]:
     print(f"Configuration Fault: Path {config_path} not found.", file=sys.stderr)
     raise typer.Exit(code=1)
 
+@app.command(name="batch-register-scans")
+def batch_register_scans_command(
+    scan_log: Path = typer.Argument(..., help="Path to the fiber optic network scanner plaintext log file containing raw MAC pools."),
+    use_sperry_block: bool = typer.Option(False, "--sperry", help="Force the mapping engine to use the alternative Sperry/UNIVAC future hardware OUI block."),
+    kvm_json: Path = typer.Option(Path("gui_state.json"), help="Path to your active Univac_Sperry_KVM_GUI state layout file."),
+    visio_csv: Path = typer.Option(Path("visio_mapping.csv"), help="The target data visualizer spreadsheet file path destination.")
+):
+    """Parses live fiber optic network scan logs, extracts raw hardware addresses, and batch-registers them to the gateway layer."""
+    if not scan_log.exists():
+        print(f"[BATCH FAULT] Fiber network scanner log dump missing at path: '{scan_log}'", file=sys.stderr)
+        raise typer.Exit(code=1)
+        
+    print(f"\n======================================================================")
+    print(f"AUTOMATED HIGH-SPEED BATCH GATEWAY MATRIX // ASSET: {scan_log.name}")
+    print(f"======================================================================")
+    print("[BATCH] Extracting hardware addresses from live fiber diagnostic pools...")
+    
+    with open(scan_log, "r", encoding="utf-8", errors="ignore") as f:
+        content = f.read()
+        
+    mac_pattern = re.compile(r"([0-9a-fA-F]{2}[:-][0-9a-fA-F]{2}[:-][0-9a-fA-F]{2}[:-][0-9a-fA-F]{2}[:-][0-9a-fA-F]{2}[:-][0-9a-fA-F]{2})")
+    matched_macs = mac_pattern.findall(content)
+    
+    unique_macs = list(set(matched_macs))
+    total_nodes = len(unique_macs)
+    
+    if total_nodes == 0:
+        print("[BATCH DEFERRED] Fiber scanner log contains zero matching hardware addresses.", file=sys.stderr)
+        return
+        
+    print(f"[BATCH] Located {total_nodes} unique hardware elements. Invoking dynamic translation matrices...\n")
+    
+    for mac in unique_macs:
+        register_device_to_unisys_gateway(mac, use_sperry_block, kvm_json, visio_csv)
+        
+    print(f"\n[BATCH COMPLETE] Successfully processed fiber scans. {total_nodes} terminal channels mounted.\n")
+
 @app.command(name="listen-ports")
 def listen_ports_command(
     config: Path = typer.Option(Path("config.yaml"), help="Path to the master system topology file blueprint."),
@@ -791,16 +856,6 @@ def listen_server_command(
         print("\n[SERVER INTERRUPT] Halting background processes cleanly.")
         raise typer.Exit(code=0)
 
-@app.command(name="register-gateway-node")
-def register_gateway_node_command(
-    hardware_mac: str = typer.Argument(..., help="The raw physical hardware MAC address of the connected machine room device."),
-    use_sperry_block: bool = typer.Option(False, "--sperry", help="Force the mapping engine to utilize the alternative Sperry/UNIVAC future hardware OUI block instead of the Unisys block."),
-    kvm_json: Path = typer.Option(Path("gui_state.json"), help="Path to your active Univac_Sperry_KVM_GUI configuration file."),
-    visio_csv: Path = typer.Option(Path("visio_mapping.csv"), help="The target data visualizer spreadsheet file path destination.")
-):
-    """Dynamically converts a connected device's physical MAC into an authentic, unassigned Unisys/UNIVAC address block, mounting it to the gateway."""
-    register_device_to_unisys_gateway(hardware_mac, use_sperry_block, kvm_json, visio_csv)
-
 @app.command(name="analyze-trunk-signal")
 def analyze_trunk_signal_command(
     config: Path = typer.Option(Path("config.yaml"), help="Path to the master system topology file configuration profile."),
@@ -813,7 +868,7 @@ def analyze_trunk_signal_command(
     magnitude_threshold = policing_rules.get("power_magnitude_floor", 15.0)
     
     print(f"\n======================================================================")
-    print(f"UNIVAC-IX IN-BAND TELEPHONY OVERRIDE DAEMON // MULTI-VENDOR CONTROL")
+    print(f"UNIVAC-IX IN-BAND TELEPHONY OVERRIDE DAEMON // INLINE TRUNK GUARD")
     print(f"======================================================================")
     print(f"[RECON] Evaluating long-distance in-band telecommunication trunk frequencies...")
     
@@ -834,7 +889,7 @@ def analyze_trunk_signal_command(
     print("\n" + "!" * 80)
     print(f" !!! TACTICAL ALERT: 2600 HZ IN-BAND TRUNK DISCONNECT CARRIER INTERCEPTED !!!")
     print(f" -> LINE HARDWARE INTEGRITY STATUS: CRITICAL_DISCONNECT_TRAP_ENGAGED")
-    print(f" -> PROTECTION ACTION: ENGAGING AUTONOMIC HARDWARE FALLBACK OVERRIDES")
+    print(f" -> PROTECTION ACTION: ENGAGING AUTONOMIC TERMINAL SAFE-MODE LOCKS")
     print("!" * 80)
     
     update_kvm_json_state(kvm_json, "TELEPHONY_TRUNK_01_STATUS", "DISCONNECTED_2600HZ_SF", "GOERTZEL_SIGNAL_PROCESSOR")
@@ -842,7 +897,17 @@ def analyze_trunk_signal_command(
     append_event_to_visio_csv(visio_csv, f"TRUNK_DROP_{epoch_stamp}", "Trunk_Disconnect_Ch1", f"In-band 2600 Hz tone verified at magnitude {spectral_magnitude:.2f}.", "TELEPHONY_GUARD", "TRUNK_LINE", "ADSL_METRIC", "0x0013", "DRIVER_TELEPHONY_SF", "CRITICAL_TRAP_ENGAGED", "DarkRed")
     
     execute_sf_trunk_plc_overrides(config_data, visio_csv, kvm_json)
+    force_terminal_gateway_safe_mode(kvm_json, visio_csv)
     print()
+
+@app.command(name="register-gateway-node")
+def register_gateway_node_command(
+    hardware_mac: str = typer.Argument(..., help="The raw physical hardware MAC address of the connected machine room device."),
+    use_sperry_block: bool = typer.Option(False, "--sperry", help="Force the mapping engine to utilize the alternative Sperry/UNIVAC future hardware OUI block instead of the Unisys block."),
+    kvm_json: Path = typer.Option(Path("gui_state.json"), help="Path to your active Univac_Sperry_KVM_GUI configuration file."),
+    visio_csv: Path = typer.Option(Path("visio_mapping.csv"), help="The target data visualizer spreadsheet file path destination.")
+):
+    register_device_to_unisys_gateway(hardware_mac, use_sperry_block, kvm_json, visio_csv)
 
 @app.command(name="parse-dialup-stream")
 def parse_dialup_stream_command(
@@ -1117,4 +1182,5 @@ def scan_recovered_data_command(
         print(f"\n[INJECTION COMPLETE] Successfully parsed file and synchronized data matrices.")
 
 if __name__ == "__main__":
+    parallel_cpu_generate_gateway_macs(np.array([12345], dtype=np.uint32), np.array([1], dtype=np.int32))
     app()
