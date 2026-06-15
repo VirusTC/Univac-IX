@@ -18,6 +18,24 @@ routing_matrix:
       label: "RADIO_TRANS_TX"
       description: "External radio transmitter hardware stream interface"
 
+recovery_handshakes:
+  DRIVER_MIL_STD_1397_TACTICAL:
+    trigger_keyword: "ERROR"
+    reply_hex: "AA55FFFF0000" # Tactical Reset Matrix Instruction Block
+    label: "TACTICAL_RADAR_RELOAD"
+  DRIVER_AVIATION_KNOWLEDGE:
+    trigger_keyword: "ALTITUDE"
+    reply_hex: "7E01FFAA" # Telemetry Stabilization Vector
+    label: "AVIONICS_AUTO_LEVEL"
+  DRIVER_OTIS_GEN360:
+    trigger_keyword: "BREAKDOWN"
+    reply_hex: "0F0F00001111" # Force Mechanical Brake Bypass Release
+    label: "OTIS_BRAKE_RELEASE"
+  DRIVER_SAFETY_MONITOR:
+    trigger_keyword: "CRITICAL"
+    reply_hex: "DEADBEEF0101" # Master Facility Halon / Suppressor Suppression Pulse
+    label: "SUPPRESSION_ENGAGE"
+
 nodes:
   - id: "PORT_17"
     name: "Sys_Incoming_Monitor"
