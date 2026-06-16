@@ -8,3 +8,5 @@ pyserial
 watchdog
 openpyxl
 pypdf
+hyperformula
+xlsx
