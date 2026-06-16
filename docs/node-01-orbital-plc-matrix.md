@@ -1,9 +1,9 @@
 ***
 
-### File 2: `node-02-orbital-plc-matrix.md`
+### File 2: `node-01-orbital-plc-matrix.md`
 ```markdown
 ---
-title: "Node 02: Project 0G - Planetary Satellite Matrix"
+title: "Node 01: Project 0G - Planetary Satellite Matrix"
 classification: "TOP SECRET // EXECUTIVE EYES ONLY"
 target_audience: "Aerospace Executives, Space-Faring Nations, Legacy Asset Collectors"
 ---
