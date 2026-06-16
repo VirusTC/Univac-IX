@@ -1,92 +1,84 @@
-/**
- * Headless Core Broker for Univac-IX Light Engine
- * Routes raw optical arrays straight to the calculation matrix worker.
- */
+import { Worker } from 'worker_threads';
+import * as path from 'path';
 
-const mainframeWorker = new Worker(
-    new URL('./light_worker.js', import.meta.url), 
-    { type: 'module' }
-);
+const workerPath = path.resolve('./src/modules/light_app/light_worker.js');
+const telecomWorker = new Worker(workerPath);
 
-// Configuration state targets for the mathematical equations
-let currentTargetState = {
-    element: "Titanium",
-    electrons: 22,
+// Default fiber configuration using Glass/Silica base indices mapped in your sheet
+let linkConfiguration = {
+    coreMaterial: "Glass_Silica",
+    electrons: 14,
     charge: 0
 };
 
-// Initialize the computing stack automatically on file execution
+/**
+ * Mainframe Core Boot Sequence
+ */
 (() => {
-    console.log("[Mainframe Core] Spawning Headless Light Engine Processing Thread...");
-    
-    mainframeWorker.postMessage({
-        action: 'INITIALIZE_MAINFRAME',
+    // Initial load path targeting your Excel compiler artifact folder 
+    telecomWorker.postMessage({
+        action: 'LOAD_FIBER_METRICS',
         payload: { jsonUrl: '../../assets/data/compiled_ptable_metadata.json' }
     });
 
-    mainframeWorker.onmessage = (event) => {
-        const { status, data, error } = event.data;
+    telecomWorker.on('message', (response) => {
+        const { status, telecomFrame, error } = response;
 
-        if (status === 'MAINFRAME_ONLINE') {
-            console.log("✅ [Mainframe Core] Processing thread ready. UI overhead bypassed.");
-            startHighSpeedIngestionLoop();
+        if (status === 'CORE_READY') {
+            // Begins internal computation sequences immediately without interface halts
+            beginTelemetryIngestion();
         }
 
-        if (status === 'COMPUTATION_COMPLETE') {
-            // Output pure telemetry straight to system logs or your outbound WebSocket bridge
-            executeStreamTelemetryOutput(data);
+        if (status === 'COMPUTATION_SUCCESS') {
+            // Write the pure JSON directly to standard output for your external KVM bridge system
+            process.stdout.write(JSON.stringify(telecomFrame) + "\n");
         }
 
-        if (status === 'MAINFRAME_ERROR') {
-            console.error(`🚨 [Mainframe Core Critical Fault] ${error}`);
+        if (status === 'CORE_FAULT') {
+            process.stderr.write(`[MAINFRAME EXCEPTION] ${error}\n`);
         }
-    };
+    });
 })();
 
 /**
- * Updates the active element configuration targeting from background script logic
+ * Real-Time Hardware Processing Simulation Loop
  */
-export function reconfigureTargetSubstance(element, electrons, charge) {
-    currentTargetState = { element, electrons, charge };
+function beginTelemetryIngestion() {
+    setInterval(() => {
+        // Fetch raw physical track signal input array (e.g., length 128 indices)
+        const rawOtdrBuffer = sampleOtdrHardwareTracks();
+
+        telecomWorker.postMessage({
+            action: 'PROCESS_TELECOM_TRACE',
+            payload: {
+                rawTraceBuffer: rawOtdrBuffer,
+                sampleRateHz: 5000000, // 5 MHz instrumentation processing sample window
+                linkConfig: linkConfiguration
+            }
+        });
+    }, 15); // Dispatches computation cycles continually at high speeds
 }
 
 /**
- * High-Speed Data Engine Pipeline Loop
+ * Changes runtime equations target variables (can be called by your wrapper apps)
  */
-function startHighSpeedIngestionLoop() {
-    // Zero-delay or high-frequency calculation loop mapping
-    setInterval(() => {
-        const rawTelemetryTrack = captureHardwareInstrumentationTrack();
-
-        mainframeWorker.postMessage({
-            action: 'COMPUTE_MATRIX_FRAME',
-            payload: {
-                liveTrack: rawTelemetryTrack,
-                targetState: currentTargetState
-            }
-        });
-    }, 10); // Runs calculation cycles continuously every 10ms
+export function reconfigureCoreSubstance(coreMaterial, electrons, charge) {
+    linkConfiguration = { coreMaterial, electrons, charge };
 }
 
-function executeStreamTelemetryOutput(results) {
-    if (results.chemicalContext.error) {
-        console.warn(`[Mainframe Telemetry Warning] ${results.chemicalContext.error}`);
-        return;
-    }
-
-    // Pure system data layout print out - completely decoupled from DOM threads
-    console.log(
-        `[METRICS] SNR: ${results.telemetry.signalToNoiseRatioDb}dB | ` +
-        `Peak: ${results.telemetry.peakIntensity}lm | ` +
-        `Color Hex: ${results.chemicalContext.calculatedColorHex}`
-    );
-}
-
-// Simulated High-Speed Hardware Buffer Intake Generator
-function captureHardwareInstrumentationTrack(length = 128) {
-    const buffer = new Float32Array(length);
+/**
+ * Mock OTDR Reflection Waveform Data Intake Generator
+ */
+function sampleOtdrHardwareTracks(length = 64) {
+    const track = new Float32Array(length);
     for (let i = 0; i < length; i++) {
-        buffer[i] = (Math.sin(i * 0.15) * 45 + 50) + (Math.random() * 10);
+        let baseSignalDrop = 60 - (i * 0.5); // Standard fiber loss slope line
+        
+        if (i === 20) baseSignalDrop -= 1.5; // Simulate a standard splice drop event location
+        if (i === 45) baseSignalDrop -= 5.0; // Simulate a severe air bubble cavity reflection trap
+        
+        const electronicNoiseFloor = Math.random() * 0.2;
+        track[i] = Math.max(0, baseSignalDrop + electronicNoiseFloor);
     }
-    return buffer;
+    return track;
 }
