@@ -1,6 +1,6 @@
 ---
 title: "Node 02: Planetary VLF & Oceanic Orchestrator"
-classification: "TOP SECRET // EXECUTIVE EYES ONLY"
+classification: "TOP SECRET // UNIVAC EYES ONLY"
 target_audience: "Naval Commanders, Private Submersible Owners, Doomsday Planners"
 ---
 
