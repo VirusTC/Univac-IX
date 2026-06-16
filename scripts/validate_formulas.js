@@ -3,14 +3,14 @@ import * as XLSX from 'xlsx';
 import * as path from 'path';
 
 function validateExcelFormulas() {
-    // Path to your copied spreadsheet inside the repository
-    const xlsxPath = path.resolve('./assets/data/Master_PTABLE.xlsx');
+    // Exact path matching your updated repository link
+    const xlsxPath = path.resolve('./assets/data/elements_period_table_index.xlsx');
     
     console.log(`[Validation] Loading spreadsheet from: ${xlsxPath}`);
     
     // 1. Read workbook keeping raw formulas intact
     const workbook = XLSX.readFile(xlsxPath, { cellFormula: true });
-    const sheetName = workbook.SheetNames[0];
+    const sheetName = workbook.SheetNames[0]; // Parses the primary table sheet
     const worksheet = workbook.Sheets[sheetName];
 
     // 2. Transform to a 2D array matrix for HyperFormula
@@ -32,7 +32,7 @@ function validateExcelFormulas() {
         for (let c = 0; c < sheetData[r].length; c++) {
             const cellValue = hf.getCellValue({ sheet: sheetId, col: c, row: r });
 
-            // Check if HyperFormula caught an Excel structural/runtime calculation error
+            // Detect if HyperFormula flags an unresolvable Excel reference or execution error
             if (cellValue && typeof cellValue === 'object' && cellValue.type) {
                 const cellAddress = hf.simpleCellAddressToString({ sheet: sheetId, col: c, row: r });
                 console.error(`❌ Formula Error Found at ${cellAddress}: ${cellValue.type} (Message: ${cellValue.message || 'None'})`);
@@ -43,8 +43,8 @@ function validateExcelFormulas() {
 
     // 5. Enforce Build Pass/Fail
     if (errorCount > 0) {
-        console.error(`\n[Validation Failed] Found ${errorCount} unresolvable formula dependency error(s) in your P-Table spreadsheet.`);
-        process.exit(1); // Non-zero exit code forces the GitHub Action runner to fail
+        console.error(`\n[Validation Failed] Found ${errorCount} unresolvable formula dependency error(s) in elements_period_table_index.xlsx.`);
+        process.exit(1); 
     } else {
         console.log(`\n✅ [Validation Passed] All interlinked formulas compiled flawlessly across the grid!`);
         process.exit(0);
