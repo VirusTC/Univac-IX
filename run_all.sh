@@ -1,6 +1,6 @@
 #!/bin/bash
 # UNIVAC-IX Master Automation Loop (Updated for Multi-Language Nodes)
-
+from modules.spatial_tracker import UnivacIXLogisticsTracker
 echo "=== INITIALIZING UNIVAC-IX MAIN SEQUENCE ==="
 
 cleanup_processes() {
