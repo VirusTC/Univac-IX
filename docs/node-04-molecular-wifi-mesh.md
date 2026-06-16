@@ -1,10 +1,6 @@
-***
-
-### File 5: `node-04-molecular-wifi-mesh.md`
-```markdown
 ---
 title: "Node 04: The Molecular Wi-Fi Mesh Orchestrator"
-classification: "TOP SECRET // EXECUTIVE EYES ONLY"
+classification: "TOP SECRET // UNIVAC EYES ONLY"
 target_audience: "Bunker Architects, Smart Estate Builders, Heavy Industry Tycoons"
 ---
 
