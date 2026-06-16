@@ -1,7 +1,3 @@
-***
-
-### File 4: `node-03-optical-lifi-matrix.md`
-```markdown
 ---
 title: "Node 03: Enterprise LiFi & Thermal Surveillance Matrix"
 classification: "TOP SECRET // EXECUTIVE EYES ONLY"
