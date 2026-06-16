@@ -23,11 +23,28 @@ sf_trunk_policing:
     - address: "0x0013"
       label: "TELEPHONY_TRUNK_01"
 
+
 # --- Communications Topology ---
 telephony:
   trunk:
     ip: "192.168.1.100"
     port: 5060
+
+# --- Core Mainframe Interfacing Profile ---
+# Select the plug-and-play architecture profile:
+# Options: 
+#   - "DORADO_ROCE"       (Modern 100Gb RDMA fiber optic framework)
+#   - "LIBRA_SPAR"        (Modern Unisys secure partitioning environment)
+#   - "VINTAGE_T1"        (Historical digital multiplexed loop)
+#   - "AUTODIN"           (Vintage secure defense messaging network)
+#   - "TELPAK_WIDEBAND"   (Vintage aggregated wideband multi-channel grouping)
+mainframe_io_profile: "DORADO_ROCE"
+
+# --- High-Fidelity Audio DSP Configuration ---
+audio_engine:
+  acoustic_profile: "SENNHEISER"
+  noise_cancellation_threshold: 0.005
+  
   gateway:
     ip: "192.168.1.200"
     port: 161
