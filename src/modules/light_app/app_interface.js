@@ -1,4 +1,27 @@
 import { Worker } from 'worker_threads';
+import * as os from 'os';
+
+const systemCpuCores = os.cpus().length; // Detects server capability (e.g., 16, 32, or 64 cores)
+const workerMainframePool = [];
+
+process.stderr.write(`🚨 [Mainframe Pool] Deploying Multicore Infrastructure across ${systemCpuCores} cores...\n`);
+
+// Scale worker instances dynamically to match hardware limits
+for (let i = 0; i < systemCpuCores; i++) {
+    workerMainframePool.push(new Worker('./src/modules/light_app/light_worker.js'));
+}
+
+// Load-balancer: Rotates incoming trace frames to the next idle processor core
+let activeCorePointer = 0;
+export function delegateTraceToFreeCore(traceData) {
+    const targetWorker = workerMainframePool[activeCorePointer];
+    targetWorker.postMessage({ action: 'PROCESS_TELECOM_TRACE', payload: traceData });
+
+    // Loop back through the process queue round-robin style
+    activeCorePointer = (activeCorePointer + 1) % systemCpuCores;
+}
+
+import { Worker } from 'worker_threads';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as readline from 'readline';
