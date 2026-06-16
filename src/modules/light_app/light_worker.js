@@ -1,3 +1,15 @@
+import { GPU } from 'gpu.js';
+const gpu = new GPU();
+
+// Compile the telecom math matrix straight into an NVIDIA CUDA kernel
+const computeFiberTraceOnNvidia = gpu.createKernel(function(rawTrace, groupIndexN, speedOfLight) {
+    let i = this.thread.x;
+    let amplitude = rawTrace[i];
+    let timeOfFlight = i / 5000000.0;
+    let distance = (speedOfLight * timeOfFlight) / (2.0 * groupIndexN);
+
+    return distance; // Thousands of data points return simultaneously
+}).setOutput([64]); // Maps directly to your trace length array size
 import { parentPort } from 'worker_threads';
 import { UnivacLightEquationNode } from '../light_equation_node.js';
 
