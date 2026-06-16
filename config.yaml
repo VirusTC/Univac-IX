@@ -21,6 +21,32 @@ sf_trunk_policing:
     - address: "0x0013"
       label: "TELEPHONY_TRUNK_01"
 
+# --- Communications Topology ---
+telephony:
+  trunk:
+    ip: "192.168.1.100"
+    port: 5060
+  gateway:
+    ip: "192.168.1.200"
+    port: 161
+    polling_interval_ms: 2000
+
+# --- High-Fidelity Audio DSP Configuration ---
+audio_engine:
+  # Options: SENNHEISER (Neutral/Analytical) | BOSE (Warm Vocals)
+  acoustic_profile: "SENNHEISER"
+  # Threshold in linear amplitude (0.005 equals roughly -45dB for noise-gate suppression)
+  noise_cancellation_threshold: 0.005
+  # System-wide target mainframe rendering format
+  default_format: "PCM_16BIT_8000"
+
+# --- Telemetry & Electrical Threshold Lines ---
+hardware_thresholds:
+  expected_idle_voltage: 48
+  expected_loop_current_ma: 25
+  max_allowable_ren: 1.0
+  line_impedance_ohms: 600
+
 autonomous_plc_overrides:
   DRIVER_TELEPHONY_SF:
     trigger_condition: "DISCONNECTED_2600HZ_SF"
