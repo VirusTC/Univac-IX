@@ -1,0 +1,32 @@
+{
+  "FINISAR_FTLX1471D3BCL": {
+    "vendor": "Coherent/Finisar",
+    "formFactor": "SFP+",
+    "nominalWavelengthNm": 1310,
+    "groupIndexN": 1.4678,
+    "maxLinkBudgetDb": 15.0,
+    "dispersionCoefficient": 0.5,
+    "minRequiredSnrDb": 12.0,
+    "origin": "USA"
+  },
+  "LUMENTUM_QSFP28_LR4": {
+    "vendor": "Lumentum",
+    "formFactor": "QSFP28",
+    "nominalWavelengthNm": 1550,
+    "groupIndexN": 1.4682,
+    "maxLinkBudgetDb": 18.0,
+    "dispersionCoefficient": 17.0,
+    "minRequiredSnrDb": 15.0,
+    "origin": "USA"
+  },
+  "UNIVAC_SBCON_LEGACY": {
+    "vendor": "Univac / Legacy Mainframe",
+    "formFactor": "SBCON_Fixed",
+    "nominalWavelengthNm": 850,
+    "groupIndexN": 1.4520,
+    "maxLinkBudgetDb": 8.0,
+    "dispersionCoefficient": -80.0,
+    "minRequiredSnrDb": 8.0,
+    "origin": "USA"
+  }
+}
