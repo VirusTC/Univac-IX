@@ -11,7 +11,7 @@ const computeFiberTraceOnNvidia = gpu.createKernel(function(rawTrace, groupIndex
     return distance; // Thousands of data points return simultaneously
 }).setOutput([64]); // Maps directly to your trace length array size
 import { parentPort } from 'worker_threads';
-import { UnivacLightEquationNode } from '../light_equation_node.js';
+import { UnivacLightEquationNode } from './light_equation_node.js';
 
 const equationNode = new UnivacLightEquationNode();
 let indexDatabaseLoaded = false;
