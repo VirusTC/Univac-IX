@@ -1,6 +1,6 @@
 ---
 title: "Node 01: Project 0G - Planetary Satellite Matrix"
-classification: "TOP SECRET // EXECUTIVE EYES ONLY"
+classification: "TOP SECRET // UNIVAC EYES ONLY"
 target_audience: "Aerospace Executives, Space-Faring Nations, Legacy Asset Collectors"
 ---
 
