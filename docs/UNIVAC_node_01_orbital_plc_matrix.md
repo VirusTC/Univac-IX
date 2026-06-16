@@ -1,7 +1,3 @@
-***
-
-### File 2: `node-01-orbital-plc-matrix.md`
-```markdown
 ---
 title: "Node 01: Project 0G - Planetary Satellite Matrix"
 classification: "TOP SECRET // EXECUTIVE EYES ONLY"
