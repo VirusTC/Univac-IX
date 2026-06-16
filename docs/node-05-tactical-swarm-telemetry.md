@@ -1,10 +1,6 @@
-***
-
-### File 6: `node-06-tactical-swarm-telemetry.md`
-```markdown
 ---
-title: "Node 06: Tactical RC & Drone Swarm Telemetry"
-classification: "TOP SECRET // EXECUTIVE EYES ONLY"
+title: "Node 05: Tactical RC & Drone Swarm Telemetry"
+classification: "TOP SECRET // UNIVAC EYES ONLY"
 target_audience: "Private Military Contractors, Estate Security Directors, Deep Space Explorers"
 ---
 
