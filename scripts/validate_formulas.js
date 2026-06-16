@@ -1,54 +1,74 @@
 import { HyperFormula } from 'hyperformula';
 import * as XLSX from 'xlsx';
 import * as path from 'path';
+import * as fs from 'fs';
 
-function validateExcelFormulas() {
-    // Exact path matching your updated repository link
+function validateAndExportExcel() {
+    // Target location matching your repository folder path
     const xlsxPath = path.resolve('./assets/data/elements_period_table_index.xlsx');
+    const outputPath = path.resolve('./assets/data/compiled_ptable_metadata.json');
     
-    console.log(`[Validation] Loading spreadsheet from: ${xlsxPath}`);
+    console.log(`[Processor] Processing workbook from: ${xlsxPath}`);
     
-    // 1. Read workbook keeping raw formulas intact
+    // 1. Read the Excel data matrix with formulas preserved
     const workbook = XLSX.readFile(xlsxPath, { cellFormula: true });
-    const sheetName = workbook.SheetNames[0]; // Parses the primary table sheet
+    const sheetName = workbook.SheetNames[0]; 
     const worksheet = workbook.Sheets[sheetName];
 
-    // 2. Transform to a 2D array matrix for HyperFormula
+    // 2. Parse into a raw 2D array representation
     const sheetData = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false });
 
-    // 3. Initialize the compilation engine
+    // 3. Build HyperFormula dependency instance
     const hf = HyperFormula.buildFromArray(sheetData, {
         licenseKey: 'gpl-v3'
     });
 
     const sheetId = hf.getSheetId(sheetName);
     let errorCount = 0;
+    
+    // The structured export payload for your frontend or UI engine
+    const exportPayload = {
+        sheetName: sheetName,
+        generatedAt: new Date().toISOString(),
+        grid: {}
+    };
 
-    console.log(`[Validation] Scanning compilation graph for sheet: "${sheetName}"...`);
+    console.log(`[Processor] Evaluating matrix cells and dependency calculations...`);
 
-    // 4. Iterate over every cell in the data grid to verify calculations
+    // 4. Scan data structure and collect structural data
     for (let r = 0; r < sheetData.length; r++) {
         if (!sheetData[r]) continue;
         for (let c = 0; c < sheetData[r].length; c++) {
             const cellValue = hf.getCellValue({ sheet: sheetId, col: c, row: r });
+            const cellAddress = hf.simpleCellAddressToString({ sheet: sheetId, col: c, row: r });
 
-            // Detect if HyperFormula flags an unresolvable Excel reference or execution error
+            // Detect broken dependency math/references
             if (cellValue && typeof cellValue === 'object' && cellValue.type) {
-                const cellAddress = hf.simpleCellAddressToString({ sheet: sheetId, col: c, row: r });
-                console.error(`❌ Formula Error Found at ${cellAddress}: ${cellValue.type} (Message: ${cellValue.message || 'None'})`);
+                console.error(`❌ Formula Defect found at ${cellAddress}: ${cellValue.type}`);
                 errorCount++;
+            }
+
+            // Append verified computed cells into the export dataset
+            if (sheetData[r][c] !== undefined) {
+                exportPayload.grid[cellAddress] = {
+                    computedValue: cellValue,
+                    dataType: typeof cellValue,
+                    isFormula: typeof sheetData[r][c] === 'string' && sheetData[r][c].startsWith('=')
+                };
             }
         }
     }
 
-    // 5. Enforce Build Pass/Fail
     if (errorCount > 0) {
-        console.error(`\n[Validation Failed] Found ${errorCount} unresolvable formula dependency error(s) in elements_period_table_index.xlsx.`);
+        console.error(`\n[Process Failed] Halted due to ${errorCount} unresolvable calculation errors.`);
         process.exit(1); 
-    } else {
-        console.log(`\n✅ [Validation Passed] All interlinked formulas compiled flawlessly across the grid!`);
-        process.exit(0);
     }
+
+    // 5. Serialize target schema out to disk
+    fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+    fs.writeFileSync(outputPath, JSON.stringify(exportPayload, null, 2), 'utf-8');
+    console.log(`\n✅ [Export Success] Dynamic dependency matrix generated at: ${outputPath}`);
+    process.exit(0);
 }
 
-validateExcelFormulas();
+validateAndExportExcel();
