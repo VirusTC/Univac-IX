@@ -1,6 +1,6 @@
 ---
 title: "Node 03: Enterprise LiFi & Thermal Surveillance Matrix"
-classification: "TOP SECRET // EXECUTIVE EYES ONLY"
+classification: "TOP SECRET // UNIVAC EYES ONLY"
 target_audience: "Corporate Espionage Targets, Defense Contractors, Ultra-High-Net-Worth Individuals"
 ---
 
