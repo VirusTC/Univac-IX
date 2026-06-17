@@ -1,4 +1,4 @@
-UNIVAC-IX Core Fabric
+UNIVAC IX Core Fabric
 ---------------------
 
 The Autonomous Quantum-Ready Mainframe Operating System & Recovery Architecture for Global Enterprise and National Security Infrastructure
