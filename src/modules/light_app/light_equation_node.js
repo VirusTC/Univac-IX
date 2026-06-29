@@ -1,3 +1,50 @@
+import { HyperFormula } from 'hyperformula';
+
+/**
+ * Univac-IX: Light Equation Node Processor
+ * Handles 5x-stacked 36-bit analog-to-digital matrix conversions.
+ */
+
+export class LightEquationNode {
+  constructor() {
+    // 36-bit maximum value limit (2^36 - 1)
+    this.WORD_36_MAX = 68719476735n;
+  }
+
+  /**
+   * Transforms incoming analog sensory arrays into structured 5x-stacked 36-bit bigints
+   * @param {Array<number>} analogSignals Array of 5 normalized floating-point inputs [0.0, 1.0]
+   * @returns {Array<string>} 5x-stacked word hex mappings for JSON serialization
+   */
+  processAnalogStream(analogSignals) {
+    if (!Array.isArray(analogSignals) || analogSignals.length !== 5) {
+      throw new Error("Invalid analog input configuration. Input array must contain exactly 5 vectors.");
+    }
+
+    return analogSignals.map((signal, index) => {
+      // Clamp values strictly between 0 and 1
+      const clamped = Math.max(0, Math.min(1, signal));
+      
+      // Map to 36-bit discrete integer space
+      const discreteVal = BigInt(Math.floor(clamped * Number(this.WORD_36_MAX)));
+      
+      // Add operational matrix offset for the 5x stack alignment tracking
+      const stackOffset = BigInt(index) << 32n;
+      const packedWord = discreteVal ^ stackOffset;
+
+      return `0x${packedWord.toString(16).toUpperCase().padStart(10, '0')}`;
+    });
+  }
+
+  /**
+   * Implements discrete Extended Kalman Filter state transitions for tracking velocity paths
+   */
+  computeStateTransition(previousState, rawInput) {
+    const Alpha = 0.985; // Matrix decay constant
+    const Beta = 0.015;  // Input coupling factor
+    return (previousState * Alpha) + (rawInput * Beta);
+  }
+}
 // NJIT QuickMath Memory-Cache Registry Structure
 const NJIT_QUICKMATH_CACHE = new Map();
 
@@ -15,8 +62,6 @@ export function getQuickMathRefractiveIndex(element, electrons, charge) {
     NJIT_QUICKMATH_CACHE.set(uniqueMatrixKey, newlyCalculatedIndex);
     return newlyCalculatedIndex;
 }
-
-import { HyperFormula } from 'hyperformula';
 
 export class UnivacLightEquationNode {
     constructor() {

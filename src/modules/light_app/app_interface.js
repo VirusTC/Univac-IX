@@ -1,10 +1,14 @@
 import { Worker } from 'worker_threads';
 import * as os from 'os';
+import * as path from 'path';
+import * as fs from 'fs';
+import * as readline from 'readline';
+import { LightEquationNode } from './light_equation_node.js';
 
 const systemCpuCores = os.cpus().length; // Detects server capability (e.g., 16, 32, or 64 cores)
 const workerMainframePool = [];
 
-process.stderr.write(`🚨 [Mainframe Pool] Deploying Multicore Infrastructure across ${systemCpuCores} cores...\n`);
+process.stderr.write(`[Mainframe Pool] Deploying Multicore Infrastructure across ${systemCpuCores} cores...\n`);
 
 // Scale worker instances dynamically to match hardware limits
 for (let i = 0; i < systemCpuCores; i++) {
@@ -21,13 +25,74 @@ export function delegateTraceToFreeCore(traceData) {
     activeCorePointer = (activeCorePointer + 1) % systemCpuCores;
 }
 
-import { Worker } from 'worker_threads';
-import * as path from 'path';
-import * as fs from 'fs';
-import * as readline from 'readline';
-
 const workerPath = path.resolve('./src/modules/light_app/light_worker.js');
 const telecomWorker = new Worker(workerPath);
+
+const processor = new LightEquationNode();
+let criticalStateTracker = 0.5;
+
+/**
+ * Generates an instantaneous snapshot of the entire node topology matrix
+ * @param {string} zoneTarget Facility layout partition index
+ * @returns {string} Standardized unified JSON payload
+ */
+function generateUnivacMatrixTelemetry(zoneTarget) {
+  // Simulate active multi-sensor analog readings from optical arrays
+  const rawSensors = [
+    Math.random(), // Sensor 0: Ambient lumen intensity
+    Math.random(), // Sensor 1: Volumetric optical flux
+    Math.random(), // Sensor 2: Thermal infrared delta
+    Math.random(), // Sensor 3: Spatial movement differential
+    Math.random()  // Sensor 4: Network interface signal integrity
+  ];
+
+  // Process through 5x-stacked 36-bit logic layer
+  const packedTelemetry = processor.processAnalogStream(rawSensors);
+
+  // Update localized state filters
+  criticalStateTracker = processor.computeStateTransition(criticalStateTracker, rawSensors[0]);
+
+  const telemetryPayload = {
+    protocol: "UNIVAC-MATRIX-STREAM",
+    version: "9.1.0-TACTICAL",
+    timestamp: new Date().toISOString(),
+    originNode: "AI_LIGHT_CRAWLER_PRIMARY",
+    facilityZone: zoneTarget,
+    matrixState: {
+      stackedWords36: packedTelemetry,
+      filterConfidence: parseFloat(criticalStateTracker.toFixed(6)),
+      integrityCheck: criticalStateTracker > 0.1 ? "STABLE" : "DEGRADED"
+    },
+    routingControls: {
+      isolationGates: criticalStateTracker > 0.85 ? "LOCKED" : "OPEN",
+      hvacFlowMode: criticalStateTracker > 0.85 ? "EXHAUST_ISOLATE" : "NORMAL",
+      elevatorBrakes: "MONITORING"
+    }
+  };
+
+  return JSON.stringify(telemetryPayload);
+}
+
+/**
+ * Initializes continuous data pipeline stream simulation
+ */
+export function startLiveMatrixStream(intervalMs = 100) {
+  console.log(`[STREAM INITIALIZED] Broadcast channel established. Dispatching at ${intervalMs}ms loops...`);
+  
+  setInterval(() => {
+    // Alternate zone scanning patterns to simulate spatial facility routing
+    const targetZone = Math.random() > 0.5 ? "MAIN_MALL_CONCOURSE_A" : "HOSPITAL_ICU_LEVEL_3";
+    const liveJsonPacket = generateUnivacMatrixTelemetry(targetZone);
+    
+    // Output directly to standard stream for third-party listeners and agents to harvest
+    console.log(liveJsonPacket);
+  }, intervalMs);
+}
+
+// Auto-execute if testing via engine runtime directly
+if (typeof process !== 'undefined' && process.argv[1] === import.meta.url) {
+  startLiveMatrixStream(250);
+}
 
 // Hardcoded embedded fallback index registry to ensure maximum speed and zero file system failures
 const TRANSCEIVER_PROFILES = {
@@ -118,7 +183,7 @@ stdinReader.on('line', (line) => {
         const { status, telecomFrame, error } = response;
 
         if (status === 'CORE_READY') {
-            process.stderr.write("✅ [Mainframe Ingestion] Background compilation matrix loaded. Ingesting tracks.\n");
+            process.stderr.write("[Mainframe Ingestion] Background compilation matrix loaded. Ingesting tracks.\n");
             startHardwareProcessingLoop();
         }
 
