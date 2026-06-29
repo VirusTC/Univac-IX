@@ -1,3 +1,5 @@
+import { HyperFormula } from 'hyperformula';
+
 /**
  * Univac-IX: Light Equation Node Processor
  * Handles 5x-stacked 36-bit analog-to-digital matrix conversions.
@@ -60,8 +62,6 @@ export function getQuickMathRefractiveIndex(element, electrons, charge) {
     NJIT_QUICKMATH_CACHE.set(uniqueMatrixKey, newlyCalculatedIndex);
     return newlyCalculatedIndex;
 }
-
-import { HyperFormula } from 'hyperformula';
 
 export class UnivacLightEquationNode {
     constructor() {
