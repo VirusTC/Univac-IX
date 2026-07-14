@@ -1,116 +1,197 @@
-import typer
+#!/usr/bin/env python3
+"""
+UNIVAC IX: Unified Synthetic Fresh Whole Blood (SFWB) Manufacturing & Compliance Core.
+Bridges:
+1. Apis-Mellifera-Bees-Wax Plasma Scaffold Kinetics
+2. Plant-Based-Human-Lipid-Capsules Rheology and Monolayer Stability
+3. VerduraRX Beta-Carotene Molecular Conjugation & Telemetry Trackers
+
+Enforces hourly FDA Audit compliance logs under active IRB Compassionate Care Protocols.
+"""
+
 import math
-import yaml
 import json
+import yaml
 from datetime import datetime
 from pathlib import Path
+from typing import List, Dict, Any, Optional
+import typer
 
-app = typer.Typer(help="UNIVAC IX: Automated SFWB Manufacturing & FDA Compliance Control Core.")
+# Initialize the Typer CLI app wrapper
+app = typer.Typer(
+    help="UNIVAC IX Mainframe Core: Automated multi-repository physical-chemical balancing engine.",
+    add_completion=False
+)
 
-class SFWBEngine:
+class SFWBAutomationEngine:
     def __init__(self):
-        # Physical and legal constants
-        self.R = 8.314  # Gas constant J/mol*K
-        self.Ea = 48300 # Activation energy J/mol
-        self.A = 1.24e9 # Pre-exponential factor
-        self.BASE_COST_PER_ML = 2.45 # Insurance billing valuation
+        # 1. Chemical Kinetics & Arrhenius Constants (REACTION_KINETICS.md)
+        self.R = 8.314        # Universal Gas Constant (J/mol*K)
+        self.Ea = 48300       # Activation Energy for unbleached capping wax (J/mol)
+        self.A = 1.24e9       # Pre-exponential frequency factor (L/mol*s)
+        
+        # 2. Rheology & Non-Newtonian Scale Constants (FLUID_DYNAMICS_AND_RHEOLOGY.md)
+        self.PLASMA_BASE_VISCOSITY_CP = 1.2  # Native viscosity of water-soluble Apis scaffold
+        self.ZETA = 0.12                     # Organic soy lecithin cross-linking index
+        self.BETA = 4.13                     # Packing density constraint modifier
+        
+        # 3. Clinical & Physiological Constraints (IRB Compliance Manuals)
+        self.TARGET_PH_MIN = 7.35
+        self.TARGET_PH_MAX = 7.45
+        self.TARGET_OSMOLALITY_MIN = 280.0   # mOsm/kg
+        self.TARGET_OSMOLALITY_MAX = 300.0   # mOsm/kg
+        self.TARGET_VISCOSITY_MIN = 3.5      # cP (Centipoise)
+        self.TARGET_VISCOSITY_MAX = 5.5      # cP
+        self.MAX_SAFE_DELIVERY_TEMP = 6.0    # Celsius threshold for cold chain integrity
+        
+        # 4. Logistics, Supply Chain & Financials (FARM_TO_FORK_SUPPLY_CHAIN.md)
+        self.BASE_COST_PER_ML = 2.45         # Standardized valuation for organic-labeled matrix
+        self.INSURANCE_CODE = "IRB-SFWB-VEGAN-992-E"
 
-    def simulate_kinetics(self, temp_c: float, initial_koh: float, time_sec: float) -> float:
-        """Calculates exact saponification conversion efficiency using Arrhenius kinetics."""
+    def calculate_saponification_kinetics(self, temp_c: float, initial_koh: float, time_sec: float) -> float:
+        """
+        Calculates integrated wax ester conversion efficiency via second-order kinetics law.
+        Formula: X = (k * C0 * t) / (1 + k * C0 * t)
+        """
         temp_k = temp_c + 273.15
-        # k = A * exp(-Ea / (R * T))
-        k = self.A * math.exp(-self.Ea / (self.R * temp_k))
-        # Second-order integrated conversion: X = (k * C0 * t) / (1 + k * C0 * t)
-        conversion = (k * initial_koh * time_sec) / (1.0 + (k * initial_koh * time_sec))
-        return min(conversion, 1.0)
+        try:
+            # k = A * e^(-Ea / (R * T))
+            rate_constant = self.A * math.exp(-self.Ea / (self.R * temp_k))
+            conversion = (rate_constant * initial_koh * time_sec) / (1.0 + (rate_constant * initial_koh * time_sec))
+            return min(max(conversion, 0.0), 1.0)
+        except ZeroDivisionError:
+            return 0.0
 
-    def calculate_viscosity(self, hematocrit: float, plasma_viscosity: float = 1.2) -> float:
-        """Models non-Newtonian blood viscosity scaling based on lipid droplet packing."""
+    def calculate_emulsion_viscosity(self, hematocrit: float) -> float:
+        """
+        Models non-Newtonian shear-thinning relative packing viscosity via Einstein-Einstein expansion.
+        Formula: mu_r = mu_0 * (1 + 2.5*phi + 7.35*phi^2 + zeta * e^(beta * phi))
+        """
         phi = hematocrit
-        # Modified Einstein-Einstein suspension rheology formula
-        relative_viscosity = 1.0 + (2.5 * phi) + (7.35 * (phi ** 2)) + (0.12 * math.exp(4.13 * phi))
-        return plasma_viscosity * relative_viscosity
+        relative_viscosity = 1.0 + (2.5 * phi) + (7.35 * (phi ** 2)) + (self.ZETA * math.exp(self.BETA * phi))
+        return self.PLASMA_BASE_VISCOSITY_CP * relative_viscosity
+
+    def process_farm_yields(self, volume_ml: float, hct: float) -> Dict[str, float]:
+        """
+        Determines mass allocations for 100% organic labelled raw agricultural input metrics.
+        Formula: M = Volume * Target Concentration Ratio / Extraction Index
+        """
+        # Volumetric phase breakdowns
+        lipid_phase_vol = volume_ml * hct
+        plasma_phase_vol = volume_ml * (1.0 - hct)
+        
+        # Subcomponent extraction metrics
+        return {
+            "raw_honey_cappings_wax_g": plasma_phase_vol * 0.03,
+            "rice_recombinant_albumin_g": plasma_phase_vol * 0.045,
+            "soy_lecithin_surfactant_g": lipid_phase_vol * 0.08,
+            "organic_sunflower_oil_core_ml": lipid_phase_vol * 0.92,
+            "root_nodule_leghemoglobin_g": lipid_phase_vol * 0.12,
+            "carrot_extracted_carotene_g": lipid_phase_vol * 0.006,
+            "sterile_deionized_water_ml": plasma_phase_vol - (plasma_phase_vol * 0.045 / 1.35)
+        }
+
 
 @app.command()
-def process_batch(
-    batch_id: str = typer.Option(..., help="Unique tracking ID for the manufacturing run."),
-    volume_l: float = typer.Option(1.0, help="Total production volume target in Liters."),
-    hct: float = typer.Option(0.35, help="Target synthetic hematocrit fraction (0.10 - 0.45)."),
-    temp_c: float = typer.Option(83.5, help="Core saponification reactor temperature in Celsius."),
-    koh_concentration: float = typer.Option(0.15, help="Molarity of wood-ash KOH solution (mol/L)."),
-    output_dir: str = typer.Option("./logs", help="Destination folder for FDA audit logs.")
+def execute_run(
+    batch_id: str = typer.Option(..., "--batch-id", "-b", help="Unique tracking alphanumeric identifier."),
+    volume_l: float = typer.Option(1.0, "--volume", "-v", help="Total target SFWB volume to produce in Liters."),
+    hematocrit: float = typer.Option(0.35, "--hct", "-h", help="Synthetic cell/capsule packing fraction (0.10 - 0.45)."),
+    reactor_temp: float = typer.Option(83.5, "--temp", "-t", help="Saponification core temperature in Celsius."),
+    koh_molarity: float = typer.Option(0.15, "--koh", "-k", help="Molarity of wood-ash derived potassium hydroxide solution."),
+    current_telemetry_temp: float = typer.Option(3.2, "--telemetry", help="Current real-time IoT cold chain transit tracker temperature."),
+    output_path: str = typer.Option("./logs", "--out", help="Directory where hourly FDA ledger files are serialized.")
 ):
     """
-    Executes automated physical-chemical balancing, checks clinical parameters, 
-    and generates billing infrastructure and FDA audit ledger records.
+    Executes raw material mass balancing, reaction kinetics checks, fluid rheology loops, 
+    and issues clinical safety clearance logs for the FDA IRB mainframe system.
     """
-    engine = SFWBEngine()
+    engine = SFWBAutomationEngine()
     total_volume_ml = volume_l * 1000.0
     
-    # 1. Chemical Kinetics Phase
-    conversion_efficiency = engine.simulate_kinetics(temp_c, koh_concentration, 3600.0)
+    # 1. Step 1: Run Chemical Kinetics Simulation (REACTION_KINETICS.md)
+    # Defaulting reaction window to 3600 seconds (1 hour) to match strict FDA audit loops
+    conversion_efficiency = engine.calculate_saponification_kinetics(reactor_temp, koh_molarity, 3600.0)
     
-    # 2. Biophysical Rheology Phase
-    calculated_viscosity = engine.calculate_viscosity(hct)
-    osmolality = 285.0 + (koh_concentration * 110.0 * (1.0 - conversion_efficiency))
+    # 2. Step 2: Compute Biophysical Rheology Values (FLUID_DYNAMICS_AND_RHEOLOGY.md)
+    calculated_viscosity = engine.calculate_emulsion_viscosity(hematocrit)
     
-    # 3. Clinical Bounds Validation (FDA / IRB Compassiotic Protocol)
-    is_safe = True
-    failure_reasons = []
+    # Residual unreacted ions impact osmolality non-linearly
+    unreacted_fraction = 1.0 - conversion_efficiency
+    osmolality = 285.0 + (koh_molarity * 110.0 * unreacted_fraction)
     
-    if conversion_efficiency < 0.995:
-        is_safe = False
-        failure_reasons.append(f"Incomplete wax hydrolysis: {conversion_efficiency*100:.3f}% (Target: >99.5%)")
-    if not (3.5 <= calculated_viscosity <= 5.5):
-        is_safe = False
-        failure_reasons.append(f"Rheological failure. Viscosity: {calculated_viscosity:.2f} cP (Target: 3.5-5.5 cP)")
-    if not (280 <= osmolality <= 300):
-        is_safe = False
-        failure_reasons.append(f"Osmotic shock hazard. Osmolality: {osmolality:.1f} mOsm/kg")
+    # 3. Step 3: Run Supply Chain Mass Calculations
+    raw_materials = engine.process_farm_yields(total_volume_ml, hematocrit)
+    
+    # 4. Step 4: Run Multi-Phase Safety Verification Logic
+    is_cleared = True
+    anomalies: List[str] = []
+    
+    if conversion_efficiency < 0.997:
+        is_cleared = False
+        anomalies.append(f"Kinetics Error: Saponification conversion at {conversion_efficiency * 100:.3f}% below 99.7% threshold.")
+        
+    if not (engine.TARGET_VISCOSITY_MIN <= calculated_viscosity <= engine.TARGET_VISVISCOSITY_MAX := engine.TARGET_VISCOSITY_MAX):
+        is_cleared = False
+        anomalies.append(f"Rheological Error: Viscosity measures {calculated_viscosity:.2f} cP (Target: 3.5 - 5.5 cP).")
+        
+    if not (engine.TARGET_OSMOLALITY_MIN <= osmolality <= engine.TARGET_OSMOLALITY_MAX):
+        is_cleared = False
+        anomalies.append(f"Osmotic Balance Error: Value reads {osmolality:.1f} mOsm/kg. Threat of microvascular lysis.")
+        
+    if current_telemetry_temp > engine.MAX_SAFE_DELIVERY_TEMP:
+        is_cleared = False
+        anomalies.append(f"Cold Chain Failure: IoT tracker flagged {current_telemetry_temp}°C (Maximum safe bound: 6.0°C).")
 
-    # 4. Logistics & Automated Billing Generation
-    procurement_cost = total_volume_ml * engine.BASE_COST_PER_ML
-    insurance_code = "IRB-SFWB-VEGAN-992-E"
+    # 5. Step 5: Process Logistics Billing & Financial Metadata
+    billing_valuation = total_volume_ml * engine.BASE_COST_PER_ML
     
-    # Compilation of the active state document
-    audit_data = {
-        "timestamp": datetime.utcnow().isoformat() + "Z",
-        "batch_id": batch_id,
-        "regulatory_framework": "IRB Compassionate Care (Hourly Enforcement)",
-        "components_metric": {
-            "total_volume_ml": total_volume_ml,
-            "synthetic_hematocrit": hct,
-            "organic_saponification_conversion": round(conversion_efficiency, 5),
-            "calculated_viscosity_cp": round(calculated_viscosity, 2),
-            "calculated_osmolality_mosm": round(osmolality, 1)
+    # 6. Step 6: Construct Unified Compliant Audit Document Payload
+    audit_ledger_payload = {
+        "univac_core_metadata": {
+            "timestamp_utc": datetime.utcnow().isoformat() + "Z",
+            "batch_identifier": batch_id,
+            "regulatory_framework": "FDA IRB Compassionate Care Protocol (Hourly Active Audits)",
+            "operational_clearance": "APPROVED_FOR_CLINICAL_TRANSFUSION" if is_cleared else "REJECTED_HAZARD_ISOLATION"
+        },
+        "biochemical_telemetry_snapshot": {
+            "processed_volume_ml": total_volume_ml,
+            "target_hematocrit_fraction": hematocrit,
+            "saponification_conversion_ratio": round(conversion_efficiency, 6),
+            "fluid_viscosity_cp": round(calculated_viscosity, 3),
+            "osmotic_pressure_mosm": round(osmolality, 2),
+            "iot_cold_chain_temp_c": current_telemetry_temp
+        },
+        "organic_ingredient_manifest": {
+            "sourcing_classification": "100% Certified Organic Materials (Non-Synthetic Input Matrix)",
+            "allocated_components": {k: round(v, 3) for k, v in raw_materials.items()}
         },
         "logistics_and_financials": {
-            "procurement_classification": "100% Certified Organic Plant/Apiary Matrix",
-            "total_billing_usd": round(procurement_cost, 2),
-            "hicfa_insurance_code": insurance_code,
-            "patient_liability_waiver": "SIGNED_VEGAN_COMPASSIONATE_CARE_PROTOCOL"
+            "hicfa_insurance_billing_code": engine.INSURANCE_CODE,
+            "gross_billing_valuation_usd": round(billing_valuation, 2),
+            "patient_liability_waiver_status": "EXECUTED_VEGAN_COMPASSIONATE_CARE_PROTOCOL"
         },
-        "system_status": "APPROVED_FOR_TRANSFUSION" if is_safe else "REJECTED_HAZARD_ISOLATION",
-        "validation_errors": failure_reasons
+        "compliance_validation_errors": anomalies
     }
 
-    # Write out legal records for the automated FDA scanner loops
-    out_path = Path(output_dir)
-    out_path.mkdir(parents=True, exist_ok=True)
+    # 7. Step 7: Serialize Payload to JSON file for automated scraping loops
+    log_dir = Path(output_path)
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = log_dir / f"UNIVAC_FDA_AUDIT_{batch_id}.json"
     
-    log_file = out_path / f"FDA_AUDIT_BATCH_{batch_id}.json"
     with open(log_file, "w") as f:
-        json.dump(audit_data, f, indent=4)
-        
-    typer.secho(f"\n[+] Batch {batch_id} Processing Complete.", fg=typer.colors.GREEN, bold=True)
-    typer.echo(f"[-] Status: {audit_data['system_status']}")
-    typer.echo(f"[-] Calculated Viscosity: {audit_data['components_metric']['calculated_viscosity_cp']} cP")
-    typer.echo(f"[-] Saponification Yield: {audit_data['components_metric']['organic_saponification_conversion']*100:.3f}%")
-    typer.echo(f"[-] Financial Billable Amount: ${audit_data['logistics_and_financials']['total_billing_usd']} USD")
-    
-    if not is_safe:
-        typer.secho(f"[CRITICAL ERORR] Automated Valve Shutoff Engaged! Reasons: {failure_reasons}", fg=typer.colors.RED, bold=True)
-        raise typer.Exit(code=1)
+        json.dump(audit_ledger_payload, f, indent=4)
 
-if __name__ == "__main__":
-    app()
+    # 8. Step 8: Terminal Output Display Formatting via Typer
+    typer.echo("\n" + "="*70)
+    typer.secho("        UNIVAC IX: SYNTHETIC FRESH WHOLE BLOOD CONTROL LOGS      ", fg=typer.colors.CYAN, bold=True)
+    typer.echo("="*70)
+    typer.echo(f"Batch Track ID     : {batch_id}")
+    typer.echo(f"System Clearance   : {audit_ledger_payload['univac_core_metadata']['operational_clearance']}")
+    typer.echo(f"Kinetics Yield     : {conversion_efficiency * 100:.4f}%")
+    typer.echo(f"Emulsion Viscosity : {calculated_viscosity:.2f} cP")
+    typer.echo(f"Osmotic Metric     : {osmolality:.1f} mOsm/kg")
+    typer.echo(f"Insurance Invoicing: ${billing_valuation:,.2f} USD under code {engine.INSURANCE_CODE}")
+    typer.echo("-"*70)
+    
+    if not is_cleared:
