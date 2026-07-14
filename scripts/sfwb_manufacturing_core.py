@@ -5,6 +5,7 @@ Bridges:
 1. Apis-Mellifera-Bees-Wax Plasma Scaffold Kinetics
 2. Plant-Based-Human-Lipid-Capsules Rheology and Monolayer Stability
 3. VerduraRX Beta-Carotene Molecular Conjugation & Telemetry Trackers
+4. Warehouse Physical Batch Isolation & RFID Proximity Lockouts
 
 Enforces hourly FDA Audit compliance logs under active IRB Compassionate Care Protocols.
 """
@@ -22,38 +23,6 @@ app = typer.Typer(
     help="UNIVAC IX Mainframe Core: Automated multi-repository physical-chemical balancing engine.",
     add_completion=False
 )
-
-# To be integrated into your sfwb_manufacturing_core.py app execution logic:
-
-@app.command()
-def verify_and_ship(
-    batch_id: str = typer.Option(..., help="Alphanumeric batch ID awaiting shipment."),
-    irb_token: Optional[str] = typer.Option(None, help="Active Military Service Member IRB Consent Waiver Token."),
-    fda_expanded_access_id: Optional[str] = typer.Option(None, help="FDA Individual Patient Compassionate Use ID (Form 3926).")
-):
-    """
-    Acts as the final gatekeeper for warehouse dispatch under active CCCRP guidelines.
-    Ensures no batch leaves the facility without a legally binding patient or military tracking token.
-    """
-    if not irb_token and not fda_expanded_access_id:
-        typer.secho("\n[CRITICAL LEGAL VIOLATION] Shipment Aborted.", fg=typer.colors.WHITE, bg=typer.colors.RED, bold=True)
-        typer.secho("Error: SFWB cannot be shipped without an Active IRB Token or an FDA Form 3926 Compassionate Care ID.", fg=typer.colors.RED)
-        raise typer.Exit(code=2)
-        
-    # Log the verified legal token straight into the automated hourly FDA audit loop
-    clearance_log = {
-        "batch_id": batch_id,
-        "dispatch_timestamp": datetime.utcnow().isoformat() + "Z",
-        "authorization_mode": "MILITARY_IRB_CCCRP" if irb_token else "INDIVIDUAL_FDA_EXPANDED_ACCESS",
-        "authorization_token": irb_token if irb_token else fda_expanded_access_id,
-        "warehouse_clearance": "SECURE_DISPATCH_AUTHORIZED"
-    }
-    
-    # Save ledger file
-    with open(f"./logs/DISPATCH_CLEARANCE_{batch_id}.json", "w") as f:
-        json.dump(clearance_log, f, indent=4)
-        
-    typer.secho(f"\n[+] Legal tracking token verified. Batch {batch_id} cleared for transit to clinical staff.", fg=typer.colors.GREEN, bold=True)
 
 class SFWBAutomationEngine:
     def __init__(self):
@@ -79,15 +48,16 @@ class SFWBAutomationEngine:
         # 4. Logistics, Supply Chain & Financials (FARM_TO_FORK_SUPPLY_CHAIN.md)
         self.BASE_COST_PER_ML = 2.45         # Standardized valuation for organic-labeled matrix
         self.INSURANCE_CODE = "IRB-SFWB-VEGAN-992-E"
+        
+        # 5. Warehouse Zoning Rules (WAREHOUSE_BATCH_ISOLATION.md)
+        self.ZONE_A = "ZONE_A_ALPHA_EXPERIMENTAL"
+        self.ZONE_B = "ZONE_B_ACTIVE_CCCRP"
+        self.ZONE_C = "ZONE_C_QUARANTINE"
 
     def calculate_saponification_kinetics(self, temp_c: float, initial_koh: float, time_sec: float) -> float:
-        """
-        Calculates integrated wax ester conversion efficiency via second-order kinetics law.
-        Formula: X = (k * C0 * t) / (1 + k * C0 * t)
-        """
+        """Calculates integrated wax ester conversion efficiency via second-order kinetics law."""
         temp_k = temp_c + 273.15
         try:
-            # k = A * e^(-Ea / (R * T))
             rate_constant = self.A * math.exp(-self.Ea / (self.R * temp_k))
             conversion = (rate_constant * initial_koh * time_sec) / (1.0 + (rate_constant * initial_koh * time_sec))
             return min(max(conversion, 0.0), 1.0)
@@ -95,24 +65,16 @@ class SFWBAutomationEngine:
             return 0.0
 
     def calculate_emulsion_viscosity(self, hematocrit: float) -> float:
-        """
-        Models non-Newtonian shear-thinning relative packing viscosity via Einstein-Einstein expansion.
-        Formula: mu_r = mu_0 * (1 + 2.5*phi + 7.35*phi^2 + zeta * e^(beta * phi))
-        """
+        """Models non-Newtonian shear-thinning relative packing viscosity via Einstein-Einstein expansion."""
         phi = hematocrit
         relative_viscosity = 1.0 + (2.5 * phi) + (7.35 * (phi ** 2)) + (self.ZETA * math.exp(self.BETA * phi))
         return self.PLASMA_BASE_VISCOSITY_CP * relative_viscosity
 
     def process_farm_yields(self, volume_ml: float, hct: float) -> Dict[str, float]:
-        """
-        Determines mass allocations for 100% organic labelled raw agricultural input metrics.
-        Formula: M = Volume * Target Concentration Ratio / Extraction Index
-        """
-        # Volumetric phase breakdowns
+        """Determines mass allocations for 100% organic labelled raw agricultural input metrics."""
         lipid_phase_vol = volume_ml * hct
         plasma_phase_vol = volume_ml * (1.0 - hct)
         
-        # Subcomponent extraction metrics
         return {
             "raw_honey_cappings_wax_g": plasma_phase_vol * 0.03,
             "rice_recombinant_albumin_g": plasma_phase_vol * 0.045,
@@ -141,21 +103,14 @@ def execute_run(
     engine = SFWBAutomationEngine()
     total_volume_ml = volume_l * 1000.0
     
-    # 1. Step 1: Run Chemical Kinetics Simulation (REACTION_KINETICS.md)
-    # Defaulting reaction window to 3600 seconds (1 hour) to match strict FDA audit loops
     conversion_efficiency = engine.calculate_saponification_kinetics(reactor_temp, koh_molarity, 3600.0)
-    
-    # 2. Step 2: Compute Biophysical Rheology Values (FLUID_DYNAMICS_AND_RHEOLOGY.md)
     calculated_viscosity = engine.calculate_emulsion_viscosity(hematocrit)
     
-    # Residual unreacted ions impact osmolality non-linearly
     unreacted_fraction = 1.0 - conversion_efficiency
     osmolality = 285.0 + (koh_molarity * 110.0 * unreacted_fraction)
     
-    # 3. Step 3: Run Supply Chain Mass Calculations
     raw_materials = engine.process_farm_yields(total_volume_ml, hematocrit)
     
-    # 4. Step 4: Run Multi-Phase Safety Verification Logic
     is_cleared = True
     anomalies: List[str] = []
     
@@ -163,7 +118,7 @@ def execute_run(
         is_cleared = False
         anomalies.append(f"Kinetics Error: Saponification conversion at {conversion_efficiency * 100:.3f}% below 99.7% threshold.")
         
-    if not (engine.TARGET_VISCOSITY_MIN <= calculated_viscosity <= engine.TARGET_VISVISCOSITY_MAX := engine.TARGET_VISCOSITY_MAX):
+    if not (engine.TARGET_VISCOSITY_MIN <= calculated_viscosity <= engine.TARGET_VISCOSITY_MAX):
         is_cleared = False
         anomalies.append(f"Rheological Error: Viscosity measures {calculated_viscosity:.2f} cP (Target: 3.5 - 5.5 cP).")
         
@@ -175,10 +130,8 @@ def execute_run(
         is_cleared = False
         anomalies.append(f"Cold Chain Failure: IoT tracker flagged {current_telemetry_temp}°C (Maximum safe bound: 6.0°C).")
 
-    # 5. Step 5: Process Logistics Billing & Financial Metadata
     billing_valuation = total_volume_ml * engine.BASE_COST_PER_ML
     
-    # 6. Step 6: Construct Unified Compliant Audit Document Payload
     audit_ledger_payload = {
         "univac_core_metadata": {
             "timestamp_utc": datetime.utcnow().isoformat() + "Z",
@@ -206,7 +159,6 @@ def execute_run(
         "compliance_validation_errors": anomalies
     }
 
-    # 7. Step 7: Serialize Payload to JSON file for automated scraping loops
     log_dir = Path(output_path)
     log_dir.mkdir(parents=True, exist_ok=True)
     log_file = log_dir / f"UNIVAC_FDA_AUDIT_{batch_id}.json"
@@ -214,7 +166,6 @@ def execute_run(
     with open(log_file, "w") as f:
         json.dump(audit_ledger_payload, f, indent=4)
 
-    # 8. Step 8: Terminal Output Display Formatting via Typer
     typer.echo("\n" + "="*70)
     typer.secho("        UNIVAC IX: SYNTHETIC FRESH WHOLE BLOOD CONTROL LOGS      ", fg=typer.colors.CYAN, bold=True)
     typer.echo("="*70)
@@ -223,18 +174,92 @@ def execute_run(
     typer.echo(f"Kinetics Yield     : {conversion_efficiency * 100:.4f}%")
     typer.echo(f"Emulsion Viscosity : {calculated_viscosity:.2f} cP")
     typer.echo(f"Osmotic Metric     : {osmolality:.1f} mOsm/kg")
-    typer.echo(f"Insurance Invoicing: ${billing_valuation:,.2f} USD under code {engine.INSURANCE_CODE}")
+    typer.echo(f"Insurance Invoicing: ${billing_valuation:,.2f} USD")
     typer.echo("-"*70)
     
     if not is_cleared:
+        typer.secho("[CRITICAL ANOMALY ALERT] Automated Interception Valves Tripped!", fg=typer.colors.WHITE, bg=typer.colors.RED, bold=True)
+        for anomaly in anomalies:
+            typer.secho(f"  -> {anomaly}", fg=typer.colors.RED)
+        typer.echo("="*70 + "\n")
+        raise typer.Exit(code=1)
+    
+    typer.secho("[+] Validation parameters verified. Data piped to mainframe ledger logs successfully.", fg=typer.colors.GREEN, bold=True)
+    typer.echo("="*70 + "\n")
 
-    typer.secho("[CRITICAL ANOMALY ALERT] Automated Interception Valves Tripped!", fg=typer.colors.WHITE, bg=typer.colors.RED, bold=True)\
-for anomaly in anomalies:\
-typer.secho(f" -> {anomaly}", fg=typer.colors.RED)\
+
+@app.command()
+def parse_rfid_matrix(
+    scan_manifest_json: str = typer.Option(..., "--manifest", "-m", help="Path to the hourly raw JSON feed from the warehouse hardware antennas.")
+):
+    """
+    Parses real-time RFID spatial sensor arrays. If an experimental or quarantined batch 
+    crosses physical boundaries into the shipping lanes, it locks the automated exit terminals.
+    """
+engine = SFWBAutomationEngine()\
+manifest_path = Path(scan_manifest_json)
+
+if not manifest_path.exists():\
+typer.secho(f"[!] Scan Manifest file {scan_manifest_json} missing. Halting warehouse execution.", fg=typer.colors.RED, bold=True)\
+raise typer.Exit(code=3)
+
+with open(manifest_path, "r") as f:\
+try:\
+detected_assets: List[Dict[str, Any]] = json.load(f)\
+except json.JSONDecodeError:\
+typer.secho("[CRITICAL] Corrupted RFID streaming data frame. Triggering defensive lockdown.", fg=typer.colors.WHITE, bg=typer.colors.RED, bold=True)\
+raise typer.Exit(code=4)
+
+lockdown_active = False\
+lockdown_violations: List[str] = []
+
+typer.echo("\n" + "="*70)\
+typer.secho(" UNIVAC IX: HOURLY RFID SHIELD SCANNING PROTOCOL ", fg=typer.colors.MAGENTA, bold=True)\
+typer.echo("="*70)
+
+for asset in detected_assets:\
+uid = asset.get("rfid_tag_id")\
+batch = asset.get("batch_id")\
+status = asset.get("status_code")\
+current_zone = asset.get("physical_zone_grid")
+
+# Enforce Rule 1: Only fully cleared active CCCRP batches can enter the dispatch lane (Zone B)\
+if current_zone == engine.ZONE_B:\
+if status != "STATUS_ACTIVE_CCCRP_CLEARED":\
+lockdown_active = True\
+lockdown_violations.append(\
+f"Infiltration Violation: Unapproved Asset [{batch}] with status [{status}] detected inside {engine.ZONE_B}!"\
+)
+
+# Enforce Rule 2: Quarantined batches cannot escape Zone C under any circumstances\
+if status == "STATUS_QUARANTINE_LOCKED" and current_zone != engine.ZONE_C:\
+lockdown_active = True\
+lockdown_violations.append(\
+f"Quarantine Breach: Compromised Asset [{batch}] escaped containment and was scanned in [{current_zone}]!"\
+)
+
+typer.echo(f"Tag ID: {uid} | Batch: {batch} | Zone: {current_zone:25} | Status: {status}")
+
+typer.echo("-"*70)
+
+if lockdown_active:\
+typer.secho("[LOCKDOWN ACTIVE] SHIPPING BAY PERIMETER DOORS SEALED AUTOMATICALLY!", fg=typer.colors.WHITE, bg=typer.colors.RED, bold=True)\
+for violation in lockdown_violations:\
+typer.secho(f" -> CRITICAL MISMAtCH: {violation}", fg=typer.colors.RED, bold=True)
+
+# Write out automated electronic containment ledger to the FDA scanner directory\
+lockdown_log = {\
+"timestamp_utc": datetime.utcnow().isoformat() + "Z",\
+"security_state": "INTERCEPT_VALVES_AND_SHIPPING_BAYS_LOCKED",\
+"violations_detected": lockdown_violations\
+}\
+with open("./logs/CRITICAL_SECURITY_LOCKDOWN.json", "w") as f:\
+json.dump(lockdown_log, f, indent=4)
+
 typer.echo("="*70 + "\n")\
-raise typer.Exit(code=1)
+raise typer.Exit(code=5)
 
-typer.secho("[+] Validation parameters verified. Data piped to mainframe ledger logs successfully.", fg=typer.colors.GREEN, bold=True)\
+typer.secho("[SUCCESS] Physical inventory grid verified. All phases match spatial boundaries.", fg=typer.colors.GREEN, bold=True)\
 typer.echo("="*70 + "\n")
 
 if **name** == "**main**":\
