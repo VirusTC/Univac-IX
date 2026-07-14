@@ -195,3 +195,15 @@ def execute_run(
     typer.echo("-"*70)
     
     if not is_cleared:
+
+    typer.secho("[CRITICAL ANOMALY ALERT] Automated Interception Valves Tripped!", fg=typer.colors.WHITE, bg=typer.colors.RED, bold=True)\
+for anomaly in anomalies:\
+typer.secho(f" -> {anomaly}", fg=typer.colors.RED)\
+typer.echo("="*70 + "\n")\
+raise typer.Exit(code=1)
+
+typer.secho("[+] Validation parameters verified. Data piped to mainframe ledger logs successfully.", fg=typer.colors.GREEN, bold=True)\
+typer.echo("="*70 + "\n")
+
+if **name** == "**main**":\
+app()
